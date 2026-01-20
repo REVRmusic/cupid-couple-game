@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useGame, useActiveGame, useQuestions, useLeaderboard } from '@/hooks/useGame';
-import { createGame, startGame, nextQuestion, resetGame, deleteGame } from '@/lib/gameActions';
+import { createGame, startGame, nextQuestion, resetGame, deleteGame, resetLeaderboard } from '@/lib/gameActions';
 import { 
   Play, 
   SkipForward, 
@@ -19,7 +19,8 @@ import {
   HelpCircle,
   Check,
   X,
-  Pencil
+  Pencil,
+  RotateCcw
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
@@ -89,6 +90,15 @@ export default function Admin() {
       toast({ title: 'Erreur', description: 'Impossible de supprimer', variant: 'destructive' });
     } else {
       toast({ title: 'Supprimé', description: 'La partie a été supprimée' });
+    }
+  };
+
+  const handleResetLeaderboard = async () => {
+    const { error } = await resetLeaderboard();
+    if (error) {
+      toast({ title: 'Erreur', description: 'Impossible de réinitialiser le classement', variant: 'destructive' });
+    } else {
+      toast({ title: 'Classement réinitialisé', description: 'Nouvelle soirée ! Le classement a été vidé.' });
     }
   };
 
@@ -412,10 +422,20 @@ export default function Admin() {
           <TabsContent value="leaderboard">
             <Card className="romantic-card">
               <CardHeader>
-                <CardTitle className="font-display text-2xl flex items-center gap-3">
-                  <Trophy className="w-6 h-6 text-gold" />
-                  Classement des couples
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="font-display text-2xl flex items-center gap-3">
+                    <Trophy className="w-6 h-6 text-gold" />
+                    Classement des couples
+                  </CardTitle>
+                  <Button 
+                    onClick={handleResetLeaderboard} 
+                    variant="destructive"
+                    className="flex items-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Nouvelle soirée
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {leaderboard.length === 0 ? (
