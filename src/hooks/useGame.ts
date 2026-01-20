@@ -254,11 +254,20 @@ export function useLeaderboard() {
       .eq('status', 'finished')
       .eq('hidden_from_leaderboard', false)
       .order('score', { ascending: false })
-      .order('created_at', { ascending: false })
+      .order('total_questions', { ascending: true })
+      .order('created_at', { ascending: true })
       .limit(10);
 
     if (!error && data) {
-      setLeaderboard(data as Game[]);
+      // Sort by score percentage (score/total_questions) descending, then by score descending
+      const sortedData = [...data].sort((a, b) => {
+        const ratioA = a.total_questions > 0 ? a.score / a.total_questions : 0;
+        const ratioB = b.total_questions > 0 ? b.score / b.total_questions : 0;
+        if (ratioB !== ratioA) return ratioB - ratioA;
+        if (b.score !== a.score) return b.score - a.score;
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      });
+      setLeaderboard(sortedData as Game[]);
     }
     setLoading(false);
   }
