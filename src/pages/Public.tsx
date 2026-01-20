@@ -225,6 +225,15 @@ export default function Public() {
             </p>
           </div>
 
+          {/* Question */}
+          <Card className="romantic-card mb-8">
+            <CardContent className="p-12 text-center">
+              <p className="text-4xl md:text-5xl font-display text-foreground leading-relaxed">
+                {currentQuestion.questions?.text}
+              </p>
+            </CardContent>
+          </Card>
+
           {/* Result Card */}
           <Card className={`romantic-card animate-scale-in ${isCorrect ? 'ring-4 ring-green-400' : 'ring-4 ring-red-400'}`}>
             <CardContent className="p-12 text-center">
