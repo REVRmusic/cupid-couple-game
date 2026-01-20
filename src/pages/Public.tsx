@@ -5,6 +5,54 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useGame, useActiveGame, useLeaderboard } from '@/hooks/useGame';
 import { Heart, Trophy, Crown, Medal } from 'lucide-react';
 import { PartnerLogos } from '@/components/PartnerLogos';
+import { ConfettiCelebration } from '@/components/ConfettiCelebration';
+
+// Function to get humorous comment based on score percentage
+function getScoreComment(score: number, total: number): { emoji: string; comment: string } {
+  const percentage = total > 0 ? (score / total) * 100 : 0;
+
+  if (percentage === 100) {
+    return {
+      emoji: '🏆',
+      comment: "Incroyable ! Vous lisez dans les pensées de l'autre... C'est presque flippant !"
+    };
+  } else if (percentage >= 90) {
+    return {
+      emoji: '💑',
+      comment: "Quasi parfait ! Vous êtes connectés comme le WiFi et le téléphone !"
+    };
+  } else if (percentage >= 70) {
+    return {
+      emoji: '💕',
+      comment: "Très belle complicité ! Quelques mystères gardent la flamme vivante..."
+    };
+  } else if (percentage >= 50) {
+    return {
+      emoji: '💝',
+      comment: "Pas mal ! Il reste des surprises à découvrir au coin du feu..."
+    };
+  } else if (percentage >= 30) {
+    return {
+      emoji: '🤔',
+      comment: "Hmm... Vous vous êtes bien rencontrés ou c'était un date Tinder rapide ?"
+    };
+  } else if (percentage >= 10) {
+    return {
+      emoji: '😅',
+      comment: "Oups ! Peut-être essayer de parler un peu plus au dîner ?"
+    };
+  } else if (score === 0) {
+    return {
+      emoji: '💔',
+      comment: "Zéro point... C'est peut-être le moment de refaire connaissance !"
+    };
+  } else {
+    return {
+      emoji: '🙈',
+      comment: "Euh... Vous êtes sûrs d'être ensemble ? On vérifie !"
+    };
+  }
+}
 export default function Public() {
   const { activeGame, loading: loadingActive } = useActiveGame();
   const { game, currentQuestion, gameQuestions, loading } = useGame(activeGame?.id);
@@ -43,27 +91,30 @@ export default function Public() {
             <Logo size="lg" />
           </div>
 
-          {game?.status === 'finished' && (
-            <Card className="romantic-card mb-12 animate-scale-in">
-              <CardContent className="p-12 text-center">
-                <div className="text-6xl mb-4">🎉</div>
-                <h2 className="text-4xl font-display text-foreground mb-4">
-                  Bravo {game.player1_name} & {game.player2_name} !
-                </h2>
-                <p className="text-6xl font-bold text-primary mb-4">
-                  {game.score} / {game.total_questions}
-                </p>
-                <p className="text-2xl font-body text-muted-foreground">
-                  {game.score === game.total_questions 
-                    ? "Score parfait ! Vous êtes faits l'un pour l'autre ❤️"
-                    : game.score >= game.total_questions / 2 
-                    ? "Beau score ! Vous vous connaissez bien 💕"
-                    : "Il y a encore des choses à découvrir ! 💝"
-                  }
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          {game?.status === 'finished' && (() => {
+            const { emoji, comment } = getScoreComment(game.score, game.total_questions);
+            const isPerfectScore = game.score === game.total_questions;
+            
+            return (
+              <>
+                {isPerfectScore && <ConfettiCelebration />}
+                <Card className="romantic-card mb-12 animate-scale-in">
+                  <CardContent className="p-12 text-center">
+                    <div className="text-6xl mb-4">{emoji}</div>
+                    <h2 className="text-4xl font-display text-foreground mb-4">
+                      Bravo {game.player1_name} & {game.player2_name} !
+                    </h2>
+                    <p className="text-6xl font-bold text-primary mb-4">
+                      {game.score} / {game.total_questions}
+                    </p>
+                    <p className="text-2xl font-body text-muted-foreground">
+                      {comment}
+                    </p>
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
 
           {/* Leaderboard */}
           <Card className="romantic-card">
