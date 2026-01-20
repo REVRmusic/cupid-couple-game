@@ -188,14 +188,12 @@ export default function Player() {
             <Button
               onClick={() => handleAnswer('player1')}
               className="w-full py-8 text-2xl romantic-button"
-              variant="outline"
             >
               {game?.player1_name}
             </Button>
             <Button
               onClick={() => handleAnswer('player2')}
               className="w-full py-8 text-2xl romantic-button"
-              variant="outline"
             >
               {game?.player2_name}
             </Button>
