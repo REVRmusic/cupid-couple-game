@@ -177,3 +177,12 @@ export async function deleteGame(gameId: string) {
 
   return { error };
 }
+
+export async function resetLeaderboard() {
+  const { error } = await supabase
+    .from('games')
+    .update({ hidden_from_leaderboard: true })
+    .eq('status', 'finished');
+
+  return { error };
+}

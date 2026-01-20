@@ -70,6 +70,7 @@ export type Database = {
           created_at: string
           current_question_index: number
           finished_at: string | null
+          hidden_from_leaderboard: boolean
           id: string
           player1_name: string
           player2_name: string
@@ -81,6 +82,7 @@ export type Database = {
           created_at?: string
           current_question_index?: number
           finished_at?: string | null
+          hidden_from_leaderboard?: boolean
           id?: string
           player1_name: string
           player2_name: string
@@ -92,6 +94,7 @@ export type Database = {
           created_at?: string
           current_question_index?: number
           finished_at?: string | null
+          hidden_from_leaderboard?: boolean
           id?: string
           player1_name?: string
           player2_name?: string

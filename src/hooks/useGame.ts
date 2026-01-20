@@ -246,6 +246,7 @@ export function useLeaderboard() {
       .from('games')
       .select('*')
       .eq('status', 'finished')
+      .eq('hidden_from_leaderboard', false)
       .order('score', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(10);
