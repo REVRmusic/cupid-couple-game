@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { HeartBackground } from "@/components/HeartBackground";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useLightingControl } from "@/hooks/useLightingControl";
 
 interface SortableLogoItemProps {
   logo: PartnerLogo;
@@ -105,7 +106,25 @@ export default function Admin() {
   const { questions, addQuestion, updateQuestion, deleteQuestion: removeQuestion } = useQuestions();
   const { leaderboard } = useLeaderboard();
   const { logos: partnerLogos, addLogo, deleteLogo, toggleActive, reorderLogos } = usePartnerLogosAdmin();
-
+  const { sendSignal, isConnected: isLightingConnected } = useLightingControl();
+  
+  // Track previous is_correct value to detect changes
+  const prevIsCorrectRef = useRef<boolean | null | undefined>(undefined);
+  
+  // Send lighting signal when result is revealed
+  useEffect(() => {
+    if (currentQuestion?.is_correct !== null && 
+        currentQuestion?.is_correct !== undefined &&
+        prevIsCorrectRef.current === null) {
+      // Result just changed from null to a value
+      if (currentQuestion.is_correct === true) {
+        sendSignal('GREEN');
+      } else {
+        sendSignal('RED');
+      }
+    }
+    prevIsCorrectRef.current = currentQuestion?.is_correct;
+  }, [currentQuestion?.is_correct, sendSignal]);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -239,7 +258,14 @@ export default function Admin() {
       <div className="relative z-10 p-6 border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Logo size="sm" />
-          <p className="font-body text-muted-foreground">Interface Admin</p>
+          <div className="flex items-center gap-4">
+            {/* Lighting Connection Indicator */}
+            <div className="flex items-center gap-2" title={isLightingConnected ? "Companion lumières connecté" : "Companion lumières déconnecté"}>
+              <span className={`w-2 h-2 rounded-full ${isLightingConnected ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <span className="text-xs text-muted-foreground">Lumières</span>
+            </div>
+            <p className="font-body text-muted-foreground">Interface Admin</p>
+          </div>
         </div>
       </div>
 

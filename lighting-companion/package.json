@@ -1,0 +1,16 @@
+{
+  "name": "lighting-companion",
+  "version": "1.0.0",
+  "description": "Companion app pour contrôler les lumières Daslight/Sunlite via simulation clavier",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "@nut-tree/nut-js": "^4.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
