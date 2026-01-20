@@ -1,5 +1,15 @@
 import { supabase } from '@/integrations/supabase/client';
 
+// Fisher-Yates shuffle algorithm for truly uniform random distribution
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 export async function createGame(player1Name: string, player2Name: string, totalQuestions: number) {
   // First, get random active questions
   const { data: questions, error: questionsError } = await supabase
@@ -11,8 +21,8 @@ export async function createGame(player1Name: string, player2Name: string, total
     return { error: questionsError };
   }
 
-  // Shuffle and pick questions
-  const shuffled = questions.sort(() => Math.random() - 0.5);
+  // Shuffle using Fisher-Yates for truly random distribution
+  const shuffled = shuffleArray(questions);
   const selectedQuestions = shuffled.slice(0, Math.min(totalQuestions, questions.length));
 
   // Create the game
