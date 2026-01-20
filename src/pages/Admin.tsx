@@ -291,6 +291,22 @@ export default function Admin() {
                   <div>
                     <label className="text-sm font-body text-muted-foreground mb-2 block">Catégories (optionnel)</label>
                     <div className="flex flex-wrap gap-2 mb-2">
+                      <button
+                        onClick={() => {
+                          if (selectedCategories.length === categories.length) {
+                            setSelectedCategories([]);
+                          } else {
+                            setSelectedCategories([...categories]);
+                          }
+                        }}
+                        className={`px-3 py-1 rounded-full text-sm transition-colors font-medium ${
+                          selectedCategories.length === categories.length
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-secondary hover:bg-secondary/80 text-secondary-foreground"
+                        }`}
+                      >
+                        {selectedCategories.length === categories.length ? "Tout désélectionner" : "Tout sélectionner"}
+                      </button>
                       {categories.map((cat) => (
                         <button
                           key={cat}
