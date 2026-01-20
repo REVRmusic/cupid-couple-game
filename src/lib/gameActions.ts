@@ -10,12 +10,18 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
-export async function createGame(player1Name: string, player2Name: string, totalQuestions: number) {
-  // First, get random active questions
-  const { data: questions, error: questionsError } = await supabase
+export async function createGame(player1Name: string, player2Name: string, totalQuestions: number, categories?: string[]) {
+  // First, get random active questions, optionally filtered by categories
+  let query = supabase
     .from('questions')
     .select('id')
     .eq('is_active', true);
+
+  if (categories && categories.length > 0) {
+    query = query.in('category', categories);
+  }
+
+  const { data: questions, error: questionsError } = await query;
 
   if (questionsError || !questions) {
     return { error: questionsError };

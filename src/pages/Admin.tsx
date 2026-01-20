@@ -25,6 +25,7 @@ import {
   Upload,
   Loader2,
   GripVertical,
+  Filter,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
@@ -90,8 +91,11 @@ export default function Admin() {
   const [player1Name, setPlayer1Name] = useState("");
   const [player2Name, setPlayer2Name] = useState("");
   const [totalQuestions, setTotalQuestions] = useState(10);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [newQuestion, setNewQuestion] = useState("");
-  const [editingQuestion, setEditingQuestion] = useState<{ id: string; text: string } | null>(null);
+  const [newQuestionCategory, setNewQuestionCategory] = useState("Général");
+  const [editingQuestion, setEditingQuestion] = useState<{ id: string; text: string; category: string } | null>(null);
+  const [questionCategoryFilter, setQuestionCategoryFilter] = useState<string>("all");
   const [newPartnerName, setNewPartnerName] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -135,7 +139,7 @@ export default function Admin() {
       return;
     }
 
-    const { error, data } = await createGame(player1Name, player2Name, totalQuestions);
+    const { error, data } = await createGame(player1Name, player2Name, totalQuestions, selectedCategories.length > 0 ? selectedCategories : undefined);
     if (error) {
       toast({ title: "Erreur", description: "Impossible de créer la partie", variant: "destructive" });
     } else {
@@ -196,7 +200,7 @@ export default function Admin() {
 
   const handleAddQuestion = async () => {
     if (!newQuestion.trim()) return;
-    const { error } = await addQuestion(newQuestion);
+    const { error } = await addQuestion(newQuestion, newQuestionCategory);
     if (error) {
       toast({ title: "Erreur", description: "Impossible d'ajouter la question", variant: "destructive" });
     } else {
@@ -204,6 +208,9 @@ export default function Admin() {
       toast({ title: "Ajouté", description: "Question ajoutée" });
     }
   };
+
+  // Get unique categories from questions
+  const categories = [...new Set(questions.map(q => q.category))].sort();
 
   const handleUpdateQuestion = async (id: string, text: string, isActive: boolean) => {
     const { error } = await updateQuestion(id, text, isActive);
@@ -282,17 +289,50 @@ export default function Admin() {
                     </div>
                   </div>
                   <div>
+                    <label className="text-sm font-body text-muted-foreground mb-2 block">Catégories (optionnel)</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {categories.map((cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => {
+                            if (selectedCategories.includes(cat)) {
+                              setSelectedCategories(selectedCategories.filter(c => c !== cat));
+                            } else {
+                              setSelectedCategories([...selectedCategories, cat]);
+                            }
+                          }}
+                          className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                            selectedCategories.includes(cat)
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted hover:bg-muted/80"
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedCategories.length === 0 ? "Toutes les catégories" : `${selectedCategories.length} catégorie(s) sélectionnée(s)`}
+                    </p>
+                  </div>
+                  <div>
                     <label className="text-sm font-body text-muted-foreground mb-2 block">Nombre de questions</label>
                     <Input
                       type="number"
                       value={totalQuestions}
                       onChange={(e) => setTotalQuestions(Number(e.target.value))}
                       min={1}
-                      max={questions.filter((q) => q.is_active).length}
+                      max={
+                        selectedCategories.length > 0
+                          ? questions.filter((q) => q.is_active && selectedCategories.includes(q.category)).length
+                          : questions.filter((q) => q.is_active).length
+                      }
                       className="w-32"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      {questions.filter((q) => q.is_active).length} questions actives disponibles
+                      {selectedCategories.length > 0
+                        ? questions.filter((q) => q.is_active && selectedCategories.includes(q.category)).length
+                        : questions.filter((q) => q.is_active).length} questions actives disponibles
                     </p>
                   </div>
                   <Button onClick={handleCreateGame} className="romantic-button">
@@ -437,7 +477,7 @@ export default function Admin() {
               <CardHeader>
                 <CardTitle className="font-display text-2xl">Ajouter une question</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <div className="flex gap-3">
                   <Input
                     value={newQuestion}
@@ -446,6 +486,19 @@ export default function Admin() {
                     className="flex-1"
                     onKeyDown={(e) => e.key === "Enter" && handleAddQuestion()}
                   />
+                  <select
+                    value={newQuestionCategory}
+                    onChange={(e) => setNewQuestionCategory(e.target.value)}
+                    className="px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  >
+                    {categories.length > 0 ? (
+                      categories.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))
+                    ) : (
+                      <option value="Général">Général</option>
+                    )}
+                  </select>
                   <Button onClick={handleAddQuestion} className="romantic-button">
                     <Plus className="w-4 h-4 mr-2" /> Ajouter
                   </Button>
@@ -454,12 +507,27 @@ export default function Admin() {
             </Card>
 
             <Card className="romantic-card">
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="font-display text-2xl">Toutes les questions ({questions.length})</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <select
+                    value={questionCategoryFilter}
+                    onChange={(e) => setQuestionCategoryFilter(e.target.value)}
+                    className="px-3 py-1 rounded-md border border-input bg-background text-sm"
+                  >
+                    <option value="all">Toutes les catégories</option>
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {questions.map((q) => (
+                  {questions
+                    .filter(q => questionCategoryFilter === "all" || q.category === questionCategoryFilter)
+                    .map((q) => (
                     <div
                       key={q.id}
                       className={`p-4 rounded-lg flex items-center gap-4 ${
@@ -485,6 +553,7 @@ export default function Admin() {
                         </>
                       ) : (
                         <>
+                          <span className="px-2 py-1 rounded text-xs bg-primary/10 text-primary font-medium">{q.category}</span>
                           <span className="flex-1 font-body">{q.text}</span>
                           <div className="flex items-center gap-2">
                             <Switch
@@ -494,7 +563,7 @@ export default function Admin() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => setEditingQuestion({ id: q.id, text: q.text })}
+                              onClick={() => setEditingQuestion({ id: q.id, text: q.text, category: q.category })}
                             >
                               <Pencil className="w-4 h-4" />
                             </Button>
