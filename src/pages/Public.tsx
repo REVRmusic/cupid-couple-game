@@ -4,7 +4,7 @@ import { Logo } from '@/components/Logo';
 import { Card, CardContent } from '@/components/ui/card';
 import { useGame, useActiveGame, useLeaderboard } from '@/hooks/useGame';
 import { Heart, Trophy, Crown, Medal } from 'lucide-react';
-
+import { PartnerLogos } from '@/components/PartnerLogos';
 export default function Public() {
   const { activeGame, loading: loadingActive } = useActiveGame();
   const { game, currentQuestion, gameQuestions, loading } = useGame(activeGame?.id);
@@ -115,6 +115,8 @@ export default function Public() {
               )}
             </CardContent>
           </Card>
+          
+          <PartnerLogos />
         </div>
       </div>
     );
@@ -141,6 +143,8 @@ export default function Public() {
               <Heart className="w-16 h-16 text-primary mx-auto mt-8 animate-heart-beat" />
             </CardContent>
           </Card>
+          
+          <PartnerLogos />
         </div>
       </div>
     );
@@ -200,6 +204,8 @@ export default function Public() {
               </div>
             </CardContent>
           </Card>
+          
+          <PartnerLogos />
         </div>
       </div>
     );
@@ -273,10 +279,16 @@ export default function Public() {
               </CardContent>
             </Card>
           </div>
+          
+          <PartnerLogos />
         </div>
       </div>
     );
   }
 
-  return null;
+  return (
+    <>
+      <PartnerLogos />
+    </>
+  );
 }

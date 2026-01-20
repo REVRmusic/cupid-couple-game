@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { HeartBackground } from '@/components/HeartBackground';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
@@ -20,22 +20,30 @@ import {
   Check,
   X,
   Pencil,
-  RotateCcw
+  RotateCcw,
+  Image,
+  Upload,
+  Loader2
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
-
+import { usePartnerLogosAdmin } from '@/hooks/usePartnerLogos';
+import { supabase } from '@/integrations/supabase/client';
 export default function Admin() {
   const [player1Name, setPlayer1Name] = useState('');
   const [player2Name, setPlayer2Name] = useState('');
   const [totalQuestions, setTotalQuestions] = useState(10);
   const [newQuestion, setNewQuestion] = useState('');
   const [editingQuestion, setEditingQuestion] = useState<{ id: string; text: string } | null>(null);
+  const [newPartnerName, setNewPartnerName] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { activeGame, loading: loadingActive } = useActiveGame();
   const { game, currentQuestion, gameQuestions, loading } = useGame(activeGame?.id);
   const { questions, addQuestion, updateQuestion, deleteQuestion: removeQuestion } = useQuestions();
   const { leaderboard } = useLeaderboard();
+  const { logos: partnerLogos, addLogo, deleteLogo, toggleActive } = usePartnerLogosAdmin();
 
   const handleCreateGame = async () => {
     if (!player1Name || !player2Name) {
@@ -146,7 +154,7 @@ export default function Admin() {
 
       <div className="relative z-10 max-w-6xl mx-auto p-6">
         <Tabs defaultValue="game" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="game" className="flex items-center gap-2">
               <Users className="w-4 h-4" /> Partie
             </TabsTrigger>
@@ -155,6 +163,9 @@ export default function Admin() {
             </TabsTrigger>
             <TabsTrigger value="leaderboard" className="flex items-center gap-2">
               <Trophy className="w-4 h-4" /> Classement
+            </TabsTrigger>
+            <TabsTrigger value="partners" className="flex items-center gap-2">
+              <Image className="w-4 h-4" /> Partenaires
             </TabsTrigger>
           </TabsList>
 
@@ -471,6 +482,131 @@ export default function Admin() {
                           <p className="text-xs text-muted-foreground">
                             {Math.round((g.score / g.total_questions) * 100)}%
                           </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Partners Tab */}
+          <TabsContent value="partners" className="space-y-6">
+            <Card className="romantic-card">
+              <CardHeader>
+                <CardTitle className="font-display text-2xl flex items-center gap-3">
+                  <Image className="w-6 h-6 text-primary" />
+                  Ajouter un logo partenaire
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Input
+                    value={newPartnerName}
+                    onChange={(e) => setNewPartnerName(e.target.value)}
+                    placeholder="Nom du partenaire"
+                    className="flex-1"
+                  />
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !newPartnerName.trim()) {
+                        toast({ title: 'Erreur', description: 'Veuillez entrer un nom et sélectionner une image', variant: 'destructive' });
+                        return;
+                      }
+                      
+                      setUploadingLogo(true);
+                      try {
+                        const fileName = `${Date.now()}-${file.name}`;
+                        const { error: uploadError } = await supabase.storage
+                          .from('partner-logos')
+                          .upload(fileName, file);
+                        
+                        if (uploadError) throw uploadError;
+                        
+                        const { data: { publicUrl } } = supabase.storage
+                          .from('partner-logos')
+                          .getPublicUrl(fileName);
+                        
+                        const { error } = await addLogo(newPartnerName, publicUrl);
+                        if (error) throw error;
+                        
+                        setNewPartnerName('');
+                        toast({ title: 'Succès', description: 'Logo ajouté !' });
+                      } catch (error) {
+                        toast({ title: 'Erreur', description: 'Impossible d\'ajouter le logo', variant: 'destructive' });
+                      } finally {
+                        setUploadingLogo(false);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }
+                    }}
+                  />
+                  <Button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!newPartnerName.trim() || uploadingLogo}
+                    className="romantic-button"
+                  >
+                    {uploadingLogo ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4 mr-2" />
+                    )}
+                    {uploadingLogo ? 'Envoi...' : 'Choisir image'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="romantic-card">
+              <CardHeader>
+                <CardTitle className="font-display text-2xl">
+                  Logos partenaires ({partnerLogos.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {partnerLogos.length === 0 ? (
+                  <p className="text-center text-muted-foreground font-body py-8">
+                    Aucun logo partenaire pour le moment
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {partnerLogos.map((logo) => (
+                      <div
+                        key={logo.id}
+                        className={`flex items-center gap-4 p-4 rounded-lg ${
+                          logo.is_active ? 'bg-card border border-border' : 'bg-muted opacity-60'
+                        }`}
+                      >
+                        <img 
+                          src={logo.image_url} 
+                          alt={logo.name}
+                          className="h-12 w-24 object-contain bg-white rounded"
+                        />
+                        <span className="flex-1 font-body">{logo.name}</span>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={logo.is_active}
+                            onCheckedChange={(checked) => toggleActive(logo.id, checked)}
+                          />
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={async () => {
+                              const { error } = await deleteLogo(logo.id);
+                              if (error) {
+                                toast({ title: 'Erreur', description: 'Impossible de supprimer', variant: 'destructive' });
+                              } else {
+                                toast({ title: 'Supprimé', description: 'Logo supprimé' });
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
                         </div>
                       </div>
                     ))}
