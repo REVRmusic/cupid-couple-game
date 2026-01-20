@@ -94,5 +94,18 @@ export function usePartnerLogosAdmin() {
     return updateLogo(id, { is_active: isActive });
   }
 
-  return { logos, loading, refetch: fetchLogos, addLogo, updateLogo, deleteLogo, toggleActive };
+  async function reorderLogos(reorderedLogos: PartnerLogo[]) {
+    // Update display_order for each logo
+    const updates = reorderedLogos.map((logo, index) => 
+      supabase
+        .from('partner_logos')
+        .update({ display_order: index })
+        .eq('id', logo.id)
+    );
+    
+    await Promise.all(updates);
+    setLogos(reorderedLogos.map((logo, index) => ({ ...logo, display_order: index })));
+  }
+
+  return { logos, loading, refetch: fetchLogos, addLogo, updateLogo, deleteLogo, toggleActive, reorderLogos };
 }
