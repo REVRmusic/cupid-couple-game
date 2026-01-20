@@ -133,18 +133,21 @@ export type Database = {
       }
       questions: {
         Row: {
+          category: string
           created_at: string
           id: string
           is_active: boolean
           text: string
         }
         Insert: {
+          category?: string
           created_at?: string
           id?: string
           is_active?: boolean
           text: string
         }
         Update: {
+          category?: string
           created_at?: string
           id?: string
           is_active?: boolean

@@ -31,6 +31,7 @@ export interface Question {
   id: string;
   text: string;
   is_active: boolean;
+  category: string;
   created_at: string;
 }
 
@@ -180,10 +181,10 @@ export function useQuestions() {
     setLoading(false);
   }
 
-  async function addQuestion(text: string) {
+  async function addQuestion(text: string, category: string = 'Général') {
     const { error } = await supabase
       .from('questions')
-      .insert({ text });
+      .insert({ text, category });
 
     if (!error) {
       fetchQuestions();
@@ -191,10 +192,15 @@ export function useQuestions() {
     return { error };
   }
 
-  async function updateQuestion(id: string, text: string, is_active: boolean) {
+  async function updateQuestion(id: string, text: string, is_active: boolean, category?: string) {
+    const updateData: { text: string; is_active: boolean; category?: string } = { text, is_active };
+    if (category !== undefined) {
+      updateData.category = category;
+    }
+    
     const { error } = await supabase
       .from('questions')
-      .update({ text, is_active })
+      .update(updateData)
       .eq('id', id);
 
     if (!error) {
