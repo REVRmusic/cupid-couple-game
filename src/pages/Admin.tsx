@@ -23,12 +23,91 @@ import {
   RotateCcw,
   Image,
   Upload,
-  Loader2
+  Loader2,
+  GripVertical
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
-import { usePartnerLogosAdmin } from '@/hooks/usePartnerLogos';
+import { usePartnerLogosAdmin, PartnerLogo } from '@/hooks/usePartnerLogos';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+interface SortableLogoItemProps {
+  logo: PartnerLogo;
+  onToggleActive: (id: string, isActive: boolean) => void;
+  onDelete: (id: string) => void;
+}
+
+function SortableLogoItem({ logo, onToggleActive, onDelete }: SortableLogoItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: logo.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-4 p-4 rounded-lg ${
+        logo.is_active ? 'bg-card border border-border' : 'bg-muted opacity-60'
+      }`}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+      >
+        <GripVertical className="w-5 h-5 text-muted-foreground" />
+      </button>
+      <img 
+        src={logo.image_url} 
+        alt={logo.name}
+        className="h-12 w-24 object-contain bg-white rounded"
+      />
+      <span className="flex-1 font-body">{logo.name}</span>
+      <div className="flex items-center gap-2">
+        <Switch
+          checked={logo.is_active}
+          onCheckedChange={(checked) => onToggleActive(logo.id, checked)}
+        />
+        <Button 
+          size="sm" 
+          variant="ghost"
+          onClick={() => onDelete(logo.id)}
+        >
+          <Trash2 className="w-4 h-4 text-destructive" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const [player1Name, setPlayer1Name] = useState('');
   const [player2Name, setPlayer2Name] = useState('');
@@ -43,7 +122,34 @@ export default function Admin() {
   const { game, currentQuestion, gameQuestions, loading } = useGame(activeGame?.id);
   const { questions, addQuestion, updateQuestion, deleteQuestion: removeQuestion } = useQuestions();
   const { leaderboard } = useLeaderboard();
-  const { logos: partnerLogos, addLogo, deleteLogo, toggleActive } = usePartnerLogosAdmin();
+  const { logos: partnerLogos, addLogo, deleteLogo, toggleActive, reorderLogos } = usePartnerLogosAdmin();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      const oldIndex = partnerLogos.findIndex((logo) => logo.id === active.id);
+      const newIndex = partnerLogos.findIndex((logo) => logo.id === over.id);
+      const newOrder = arrayMove(partnerLogos, oldIndex, newIndex);
+      reorderLogos(newOrder);
+    }
+  };
+
+  const handleDeleteLogo = async (id: string) => {
+    const { error } = await deleteLogo(id);
+    if (error) {
+      toast({ title: 'Erreur', description: 'Impossible de supprimer', variant: 'destructive' });
+    } else {
+      toast({ title: 'Supprimé', description: 'Logo supprimé' });
+    }
+  };
 
   const handleCreateGame = async () => {
     if (!player1Name || !player2Name) {
@@ -574,43 +680,27 @@ export default function Admin() {
                     Aucun logo partenaire pour le moment
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {partnerLogos.map((logo) => (
-                      <div
-                        key={logo.id}
-                        className={`flex items-center gap-4 p-4 rounded-lg ${
-                          logo.is_active ? 'bg-card border border-border' : 'bg-muted opacity-60'
-                        }`}
-                      >
-                        <img 
-                          src={logo.image_url} 
-                          alt={logo.name}
-                          className="h-12 w-24 object-contain bg-white rounded"
-                        />
-                        <span className="flex-1 font-body">{logo.name}</span>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={logo.is_active}
-                            onCheckedChange={(checked) => toggleActive(logo.id, checked)}
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={partnerLogos.map(logo => logo.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-3">
+                        {partnerLogos.map((logo) => (
+                          <SortableLogoItem
+                            key={logo.id}
+                            logo={logo}
+                            onToggleActive={toggleActive}
+                            onDelete={handleDeleteLogo}
                           />
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={async () => {
-                              const { error } = await deleteLogo(logo.id);
-                              if (error) {
-                                toast({ title: 'Erreur', description: 'Impossible de supprimer', variant: 'destructive' });
-                              } else {
-                                toast({ title: 'Supprimé', description: 'Logo supprimé' });
-                              }
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </SortableContext>
+                  </DndContext>
                 )}
               </CardContent>
             </Card>
