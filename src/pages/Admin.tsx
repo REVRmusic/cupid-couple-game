@@ -132,10 +132,10 @@ export default function Admin() {
   useEffect(() => {
     if (game?.status === 'finished' && prevGameStatusRef.current === 'playing') {
       console.log('🎭 Game status changed to finished - sending FINISH signal (reactive)');
-      sendSignal('FINISH');
+      sendSignal('FINISH', { score: game.score, total: game.total_questions });
     }
     prevGameStatusRef.current = game?.status;
-  }, [game?.status, sendSignal]);
+  }, [game?.status, game?.score, game?.total_questions, sendSignal]);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -203,7 +203,7 @@ export default function Admin() {
     
     if (isLastQuestion) {
       console.log('🎭 Sending FINISH signal before DB update');
-      sendSignal('FINISH');
+      sendSignal('FINISH', { score: game.score, total: game.total_questions });
       // Wait 200ms to ensure the WebSocket message is flushed
       await new Promise(resolve => setTimeout(resolve, 200));
     }
@@ -214,7 +214,7 @@ export default function Admin() {
     } else if (finished) {
       // Safety net: send FINISH again after DB confirms
       console.log('🎭 DB confirmed finished - sending FINISH signal again as safety net');
-      sendSignal('FINISH');
+      sendSignal('FINISH', { score: game.score, total: game.total_questions });
       toast({ title: "Terminé !", description: "La partie est terminée" });
     }
   };
