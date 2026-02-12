@@ -261,10 +261,17 @@ export default function Admin() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Logo size="sm" />
           <div className="flex items-center gap-4">
-            {/* Lighting Connection Indicator */}
+            {/* Lighting Control */}
             <div className="flex items-center gap-2" title={isLightingConnected ? "Companion lumières connecté" : "Companion lumières déconnecté"}>
               <span className={`w-2 h-2 rounded-full ${isLightingConnected ? 'bg-green-500' : 'bg-gray-300'}`} />
               <span className="text-xs text-muted-foreground">Lumières</span>
+              {isLightingConnected && (
+                <div className="flex items-center gap-1 ml-2">
+                  <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => sendSignal('GREEN')}>V</Button>
+                  <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => sendSignal('RED')}>R</Button>
+                  <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => sendSignal('FINISH')}>F</Button>
+                </div>
+              )}
             </div>
             <p className="font-body text-muted-foreground">Interface Admin</p>
           </div>
