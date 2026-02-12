@@ -185,6 +185,7 @@ export default function Admin() {
     if (error) {
       toast({ title: "Erreur", description: "Impossible de passer à la question suivante", variant: "destructive" });
     } else if (finished) {
+      console.log('🎭 Game finished - sending FINISH signal');
       sendSignal('FINISH');
       toast({ title: "Terminé !", description: "La partie est terminée" });
     }

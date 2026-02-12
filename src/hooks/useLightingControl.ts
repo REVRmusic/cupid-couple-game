@@ -44,7 +44,9 @@ export function useLightingControl() {
   const sendSignal = useCallback((type: 'GREEN' | 'RED' | 'FINISH') => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type }));
-      console.log(`🎭 Signal ${type} sent`);
+      console.log(`🎭 Signal ${type} sent successfully`);
+    } else {
+      console.warn(`🎭 Signal ${type} FAILED - WebSocket not open (state: ${ws.current?.readyState})`);
     }
   }, []);
 
