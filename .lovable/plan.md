@@ -1,29 +1,27 @@
 
-## Ajouter des boutons de test lumieres dans l'Admin
+## Revenir a un simple appui pour V et R
 
 ### Objectif
-Ajouter 3 boutons dans le header de l'interface Admin, a cote de l'indicateur de connexion lumieres, pour envoyer manuellement les signaux GREEN, RED et FINISH vers le companion.
+Le systeme de double appui (toggle ON puis toggle OFF apres 8s) ne fonctionne pas bien avec le logiciel de lumieres. On revient a un simple appui unique sur V et R, et c'est le logiciel de lumieres qui gerera l'extinction automatique.
 
-### Modification : `src/pages/Admin.tsx`
+Le signal FINISH garde son comportement actuel (double appui avec 10s de delai) sauf indication contraire.
 
-Remplacer l'indicateur de connexion lumieres actuel (lignes 264-268) par un groupe incluant l'indicateur existant + 3 boutons de test :
+### Modification : `lighting-companion/index.js`
 
-```typescript
-{/* Lighting Control */}
-<div className="flex items-center gap-2" title={isLightingConnected ? "Companion lumieres connecte" : "Companion lumieres deconnecte"}>
-  <span className={`w-2 h-2 rounded-full ${isLightingConnected ? 'bg-green-500' : 'bg-gray-300'}`} />
-  <span className="text-xs text-muted-foreground">Lumieres</span>
-  {isLightingConnected && (
-    <div className="flex items-center gap-1 ml-2">
-      <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => sendSignal('GREEN')}>V</Button>
-      <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => sendSignal('RED')}>R</Button>
-      <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => sendSignal('FINISH')}>F</Button>
-    </div>
-  )}
-</div>
+Supprimer les `setTimeout` pour GREEN et RED, ne garder qu'un seul appui :
+
+```javascript
+if (data.type === 'GREEN') {
+  console.log('Signal VERT - Appui touche V');
+  await sendKey('v');
+} else if (data.type === 'RED') {
+  console.log('Signal ROUGE - Appui touche R');
+  await sendKey('r');
+} else if (data.type === 'FINISH') {
+  // Garde le comportement actuel avec 10s
+  ...
+}
 ```
 
-Les boutons n'apparaissent que quand le companion est connecte. Chaque bouton envoie directement le signal correspondant (V = 8s, R = 8s, F = 10s).
-
 ### Fichier modifie
-- `src/pages/Admin.tsx` uniquement (quelques lignes dans le header)
+- `lighting-companion/index.js` uniquement
