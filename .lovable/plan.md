@@ -1,47 +1,58 @@
 
-## Corriger le signal FINISH en fin de quizz
 
-### Analyse du probleme
+## Corriger definitivement le signal FINISH
 
-Apres examen du code, le flux est le suivant :
-1. L'admin clique "Question suivante" sur la derniere question
-2. `nextQuestion()` met a jour le statut en `'finished'` dans la base de donnees (appel asynchrone)
-3. Au retour, `sendSignal('FINISH')` est appele
+### Diagnostic
 
-Le probleme potentiel : la mise a jour de la base de donnees (etape 2) declenche une notification realtime. Le hook `useActiveGame` ecoute les changements sur la table `games` et ne cherche que les parties avec le statut `'waiting'` ou `'playing'`. Quand le statut passe a `'finished'`, `activeGame` devient `null`, ce qui provoque un re-rendu qui peut interrompre le WebSocket ou causer un comportement inattendu.
+Le code actuel envoie bien `sendSignal('FINISH')` avant la mise a jour de la base de donnees, mais le signal ne semble toujours pas atteindre le companion. Plusieurs causes possibles :
 
-De plus, le hook `useLightingControl` est monte dans le composant Admin. Si un re-rendu rapide cause un demontage/remontage, le WebSocket pourrait etre brievement ferme.
+1. **L'objet `game` pourrait avoir des valeurs inattendues** au moment du clic (mis a jour par le realtime entre-temps)
+2. **Le message WebSocket pourrait ne pas etre flush** avant que le re-rendu du composant ne ferme la connexion
+3. **La condition `isLastQuestion` pourrait etre fausse** si `current_question_index` ou `total_questions` ont des valeurs inattendues
 
 ### Solution
 
-Envoyer le signal FINISH **avant** la mise a jour de la base de donnees, pour s'assurer que le WebSocket est encore ouvert et stable au moment de l'envoi.
+Adopter une approche plus robuste avec :
+1. Logs detailles pour confirmer les valeurs de `game` au moment du clic
+2. Ajout d'un petit delai (`await` d'un timeout de 200ms) apres l'envoi du signal FINISH et avant l'appel a `nextQuestion`, pour s'assurer que le message WebSocket est bien parti
+3. Garder aussi l'envoi apres le retour de `nextQuestion` comme filet de securite (double envoi)
 
 ### Modifications
 
-#### 1. `src/pages/Admin.tsx` - Envoyer FINISH avant l'appel a nextQuestion
-
-Modifier `handleNextQuestion` pour detecter que c'est la derniere question et envoyer le signal AVANT de mettre a jour la base :
+#### `src/pages/Admin.tsx` - fonction `handleNextQuestion`
 
 ```typescript
 const handleNextQuestion = async () => {
   if (!game) return;
   
-  // Detecter si c'est la derniere question AVANT l'appel
   const isLastQuestion = game.current_question_index + 1 >= game.total_questions;
   
+  console.log('🎭 handleNextQuestion called', {
+    currentIndex: game.current_question_index,
+    totalQuestions: game.total_questions,
+    isLastQuestion,
+    wsConnected: isLightingConnected
+  });
+  
   if (isLastQuestion) {
-    console.log('🎭 Last question - sending FINISH signal before DB update');
+    console.log('🎭 Sending FINISH signal before DB update');
     sendSignal('FINISH');
+    // Attendre 200ms pour s'assurer que le message WebSocket est bien envoye
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
   
   const { error, finished } = await nextQuestion(game.id, game.current_question_index, game.total_questions);
   if (error) {
-    toast({ title: "Erreur", description: "Impossible de passer à la question suivante", variant: "destructive" });
+    toast({ title: "Erreur", description: "Impossible de passer a la question suivante", variant: "destructive" });
   } else if (finished) {
-    toast({ title: "Terminé !", description: "La partie est terminée" });
+    // Double envoi comme filet de securite
+    console.log('🎭 DB confirmed finished - sending FINISH signal again as safety net');
+    sendSignal('FINISH');
+    toast({ title: "Termine !", description: "La partie est terminee" });
   }
 };
 ```
 
 ### Fichier modifie
-- `src/pages/Admin.tsx` uniquement (fonction `handleNextQuestion`, environ 5 lignes modifiees)
+- `src/pages/Admin.tsx` uniquement (fonction `handleNextQuestion`)
+
