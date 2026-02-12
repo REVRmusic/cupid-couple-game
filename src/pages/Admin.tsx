@@ -136,6 +136,28 @@ export default function Admin() {
     }
     prevGameStatusRef.current = game?.status;
   }, [game?.status, game?.score, game?.total_questions, sendSignal]);
+
+  // Auto-finish game 5 seconds after last question result is revealed
+  const autoFinishTimerRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (
+      game?.status === 'playing' &&
+      game.current_question_index + 1 >= game.total_questions &&
+      currentQuestion?.is_correct !== null &&
+      currentQuestion?.is_correct !== undefined
+    ) {
+      console.log('🎭 Last question answered - auto-finishing in 5 seconds');
+      autoFinishTimerRef.current = setTimeout(() => {
+        handleNextQuestion();
+      }, 5000);
+      return () => {
+        if (autoFinishTimerRef.current) {
+          clearTimeout(autoFinishTimerRef.current);
+          autoFinishTimerRef.current = null;
+        }
+      };
+    }
+  }, [game?.status, game?.current_question_index, game?.total_questions, currentQuestion?.is_correct]);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
