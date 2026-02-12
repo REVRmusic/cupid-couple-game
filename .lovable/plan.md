@@ -1,45 +1,29 @@
 
-
-## Maintenir les touches V et R pendant 8 secondes
+## Ajouter des boutons de test lumieres dans l'Admin
 
 ### Objectif
-Actuellement, quand une reponse est revelee, le companion envoie un simple appui sur V ou R. L'utilisateur souhaite que ces touches soient "maintenues" pendant 8 secondes (appui, puis relachement 8s plus tard), comme pour la touche F qui est maintenue 10 secondes.
+Ajouter 3 boutons dans le header de l'interface Admin, a cote de l'indicateur de connexion lumieres, pour envoyer manuellement les signaux GREEN, RED et FINISH vers le companion.
 
-### Ce qui change
+### Modification : `src/pages/Admin.tsx`
 
-Le systeme actuel d'extinction manuelle (re-envoi du signal au clic sur "Question suivante") n'est plus necessaire puisque la touche se relachera automatiquement apres 8 secondes.
+Remplacer l'indicateur de connexion lumieres actuel (lignes 264-268) par un groupe incluant l'indicateur existant + 3 boutons de test :
 
-### Modifications
-
-#### 1. `lighting-companion/index.js`
-Modifier les handlers GREEN et RED pour utiliser la meme logique que FINISH : appui sur la touche, puis `setTimeout` de 8 secondes, puis re-appui pour eteindre.
-
-```javascript
-if (data.type === 'GREEN') {
-  console.log('Signal VERT - Appui touche V (8s)');
-  await sendKey('v');
-  setTimeout(async () => {
-    console.log('Signal VERT - Relache touche V');
-    await sendKey('v');
-  }, 8000);
-} else if (data.type === 'RED') {
-  console.log('Signal ROUGE - Appui touche R (8s)');
-  await sendKey('r');
-  setTimeout(async () => {
-    console.log('Signal ROUGE - Relache touche R');
-    await sendKey('r');
-  }, 8000);
-}
+```typescript
+{/* Lighting Control */}
+<div className="flex items-center gap-2" title={isLightingConnected ? "Companion lumieres connecte" : "Companion lumieres deconnecte"}>
+  <span className={`w-2 h-2 rounded-full ${isLightingConnected ? 'bg-green-500' : 'bg-gray-300'}`} />
+  <span className="text-xs text-muted-foreground">Lumieres</span>
+  {isLightingConnected && (
+    <div className="flex items-center gap-1 ml-2">
+      <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => sendSignal('GREEN')}>V</Button>
+      <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => sendSignal('RED')}>R</Button>
+      <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => sendSignal('FINISH')}>F</Button>
+    </div>
+  )}
+</div>
 ```
 
-#### 2. `src/pages/Admin.tsx`
-Supprimer le code d'extinction manuelle dans `handleNextQuestion` (les lignes qui renvoient GREEN/RED avant de passer a la question suivante), puisque l'extinction est maintenant automatique apres 8 secondes.
+Les boutons n'apparaissent que quand le companion est connecte. Chaque bouton envoie directement le signal correspondant (V = 8s, R = 8s, F = 10s).
 
-#### 3. `lighting-companion/README.md`
-Mettre a jour la documentation pour indiquer que V et R sont maintenus 8 secondes.
-
-### Fichiers modifies
-1. `lighting-companion/index.js` - V et R maintenus 8 secondes
-2. `src/pages/Admin.tsx` - suppression de l'extinction manuelle
-3. `lighting-companion/README.md` - mise a jour documentation
-
+### Fichier modifie
+- `src/pages/Admin.tsx` uniquement (quelques lignes dans le header)
