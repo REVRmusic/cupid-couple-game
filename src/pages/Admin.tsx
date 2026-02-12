@@ -181,18 +181,29 @@ export default function Admin() {
   const handleNextQuestion = async () => {
     if (!game) return;
     
-    // Detect if this is the last question BEFORE the DB update
     const isLastQuestion = game.current_question_index + 1 >= game.total_questions;
     
+    console.log('🎭 handleNextQuestion called', {
+      currentIndex: game.current_question_index,
+      totalQuestions: game.total_questions,
+      isLastQuestion,
+      wsConnected: isLightingConnected
+    });
+    
     if (isLastQuestion) {
-      console.log('🎭 Last question - sending FINISH signal before DB update');
+      console.log('🎭 Sending FINISH signal before DB update');
       sendSignal('FINISH');
+      // Wait 200ms to ensure the WebSocket message is flushed
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
     
     const { error, finished } = await nextQuestion(game.id, game.current_question_index, game.total_questions);
     if (error) {
       toast({ title: "Erreur", description: "Impossible de passer à la question suivante", variant: "destructive" });
     } else if (finished) {
+      // Safety net: send FINISH again after DB confirms
+      console.log('🎭 DB confirmed finished - sending FINISH signal again as safety net');
+      sendSignal('FINISH');
       toast({ title: "Terminé !", description: "La partie est terminée" });
     }
   };
