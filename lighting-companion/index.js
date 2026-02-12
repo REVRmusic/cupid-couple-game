@@ -50,6 +50,8 @@ console.log('  Touches configurees:');
 console.log('    V = Vert (bonne reponse)');
 console.log('    R = Rouge (mauvaise reponse)');
 console.log('    F = Finish (fin de partie, 10s)');
+console.log('    O = Derniere question correcte (V+F combine)');
+console.log('    P = Derniere question incorrecte (R+F combine)');
 console.log('');
 console.log('  Musique:');
 console.log('    music/perfect.mp3 = Score parfait 10/10');
@@ -79,6 +81,36 @@ wss.on('connection', (ws) => {
           console.log('Signal FINISH - Relache touche F');
           await sendKey('f');
         }, 10000);
+
+        // Jouer la musique selon le score
+        if (data.score !== undefined && data.total !== undefined) {
+          const isPerfect = data.score === data.total;
+          if (isPerfect) {
+            console.log(`SCORE PARFAIT ${data.score}/${data.total} ! Musique speciale !`);
+            playMusic('music/perfect.mp3');
+          } else {
+            console.log(`Score ${data.score}/${data.total} - Musique normale`);
+            playMusic('music/normal.mp3');
+          }
+        }
+      } else if (data.type === 'LAST_GREEN') {
+        console.log('Signal DERNIERE QUESTION CORRECTE - Appui touche O');
+        await sendKey('o');
+
+        // Jouer la musique selon le score
+        if (data.score !== undefined && data.total !== undefined) {
+          const isPerfect = data.score === data.total;
+          if (isPerfect) {
+            console.log(`SCORE PARFAIT ${data.score}/${data.total} ! Musique speciale !`);
+            playMusic('music/perfect.mp3');
+          } else {
+            console.log(`Score ${data.score}/${data.total} - Musique normale`);
+            playMusic('music/normal.mp3');
+          }
+        }
+      } else if (data.type === 'LAST_RED') {
+        console.log('Signal DERNIERE QUESTION INCORRECTE - Appui touche P');
+        await sendKey('p');
 
         // Jouer la musique selon le score
         if (data.score !== undefined && data.total !== undefined) {

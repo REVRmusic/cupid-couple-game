@@ -41,7 +41,7 @@ export function useLightingControl() {
     };
   }, []);
 
-  const sendSignal = useCallback((type: 'GREEN' | 'RED' | 'FINISH', data?: { score?: number; total?: number }) => {
+  const sendSignal = useCallback((type: 'GREEN' | 'RED' | 'FINISH' | 'LAST_GREEN' | 'LAST_RED', data?: { score?: number; total?: number }) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type, ...data }));
       console.log(`🎭 Signal ${type} sent successfully`, data || '');
