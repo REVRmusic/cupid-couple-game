@@ -1,43 +1,47 @@
 
+## Corriger le signal FINISH en fin de quizz
 
-## Diagnostiquer et corriger le signal FINISH
+### Analyse du probleme
 
-### Analyse
+Apres examen du code, le flux est le suivant :
+1. L'admin clique "Question suivante" sur la derniere question
+2. `nextQuestion()` met a jour le statut en `'finished'` dans la base de donnees (appel asynchrone)
+3. Au retour, `sendSignal('FINISH')` est appele
 
-Le code dans `handleNextQuestion` appelle bien `sendSignal('FINISH')` quand la partie se termine. Cependant, il est possible que :
-1. La fonction `sendSignal` soit appelee mais que le WebSocket ne soit plus `OPEN` a ce moment-la
-2. Le signal soit envoye mais que le companion ne le traite pas correctement
+Le probleme potentiel : la mise a jour de la base de donnees (etape 2) declenche une notification realtime. Le hook `useActiveGame` ecoute les changements sur la table `games` et ne cherche que les parties avec le statut `'waiting'` ou `'playing'`. Quand le statut passe a `'finished'`, `activeGame` devient `null`, ce qui provoque un re-rendu qui peut interrompre le WebSocket ou causer un comportement inattendu.
+
+De plus, le hook `useLightingControl` est monte dans le composant Admin. Si un re-rendu rapide cause un demontage/remontage, le WebSocket pourrait etre brievement ferme.
+
+### Solution
+
+Envoyer le signal FINISH **avant** la mise a jour de la base de donnees, pour s'assurer que le WebSocket est encore ouvert et stable au moment de l'envoi.
 
 ### Modifications
 
-#### 1. `src/hooks/useLightingControl.ts`
-Ajouter un log plus explicite dans `sendSignal` pour confirmer si le message est envoye ou non :
+#### 1. `src/pages/Admin.tsx` - Envoyer FINISH avant l'appel a nextQuestion
+
+Modifier `handleNextQuestion` pour detecter que c'est la derniere question et envoyer le signal AVANT de mettre a jour la base :
 
 ```typescript
-const sendSignal = useCallback((type: 'GREEN' | 'RED' | 'FINISH') => {
-  if (ws.current?.readyState === WebSocket.OPEN) {
-    ws.current.send(JSON.stringify({ type }));
-    console.log(`Signal ${type} sent successfully`);
-  } else {
-    console.warn(`Signal ${type} FAILED - WebSocket not open (state: ${ws.current?.readyState})`);
+const handleNextQuestion = async () => {
+  if (!game) return;
+  
+  // Detecter si c'est la derniere question AVANT l'appel
+  const isLastQuestion = game.current_question_index + 1 >= game.total_questions;
+  
+  if (isLastQuestion) {
+    console.log('🎭 Last question - sending FINISH signal before DB update');
+    sendSignal('FINISH');
   }
-}, []);
+  
+  const { error, finished } = await nextQuestion(game.id, game.current_question_index, game.total_questions);
+  if (error) {
+    toast({ title: "Erreur", description: "Impossible de passer à la question suivante", variant: "destructive" });
+  } else if (finished) {
+    toast({ title: "Terminé !", description: "La partie est terminée" });
+  }
+};
 ```
 
-#### 2. `src/pages/Admin.tsx`
-Ajouter un log avant l'appel a `sendSignal` dans `handleNextQuestion` pour confirmer que le code est atteint :
-
-```typescript
-} else if (finished) {
-  console.log('Game finished - sending FINISH signal');
-  sendSignal('FINISH');
-  toast({ title: "Termine !", description: "La partie est terminee" });
-}
-```
-
-Ces logs permettront de verifier dans la console du navigateur si le signal est bien envoye. Si les logs confirment que le signal part correctement, le probleme est cote companion ou logiciel de lumieres.
-
-### Fichiers modifies
-1. `src/hooks/useLightingControl.ts` - ajout de logs de diagnostic
-2. `src/pages/Admin.tsx` - ajout d'un log dans handleNextQuestion
-
+### Fichier modifie
+- `src/pages/Admin.tsx` uniquement (fonction `handleNextQuestion`, environ 5 lignes modifiees)
