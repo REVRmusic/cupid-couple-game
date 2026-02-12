@@ -1,54 +1,45 @@
 
 
-## Ajouter un signal "FINISH" avec touche F maintenue 10 secondes
+## Maintenir les touches V et R pendant 8 secondes
 
 ### Objectif
-A la fin du quizz, envoyer un signal special au companion qui appuiera sur la touche `F` pendant 10 secondes pour activer un programme lumineux de fin de partie.
+Actuellement, quand une reponse est revelee, le companion envoie un simple appui sur V ou R. L'utilisateur souhaite que ces touches soient "maintenues" pendant 8 secondes (appui, puis relachement 8s plus tard), comme pour la touche F qui est maintenue 10 secondes.
+
+### Ce qui change
+
+Le systeme actuel d'extinction manuelle (re-envoi du signal au clic sur "Question suivante") n'est plus necessaire puisque la touche se relachera automatiquement apres 8 secondes.
 
 ### Modifications
 
 #### 1. `lighting-companion/index.js`
-- Ajouter une fonction `holdKey(key, durationMs)` qui utilise PowerShell pour maintenir une touche enfoncee pendant une duree donnee (via `SendKeys` avec un `Start-Sleep` entre le press et le release, en utilisant l'API `keybd_event` de Windows pour simuler un appui maintenu)
-- Note : `SendKeys.SendWait` ne supporte pas le maintien de touche. On utilisera plutot deux appuis : un premier appui sur `F` pour activer, puis un second appui 10s plus tard pour desactiver (meme logique toggle que pour V et R)
-- Ajouter le traitement du signal `FINISH` : appui sur `f`, puis `setTimeout` de 10 secondes, puis re-appui sur `f`
-- Mettre a jour les logs de demarrage pour afficher la touche F
+Modifier les handlers GREEN et RED pour utiliser la meme logique que FINISH : appui sur la touche, puis `setTimeout` de 8 secondes, puis re-appui pour eteindre.
 
-#### 2. `src/hooks/useLightingControl.ts`
-- Etendre le type du signal de `'GREEN' | 'RED'` a `'GREEN' | 'RED' | 'FINISH'`
-
-#### 3. `src/pages/Admin.tsx`
-- Dans `handleNextQuestion`, quand `finished === true`, envoyer `sendSignal('FINISH')` apres avoir eteint la lumiere de la derniere question
-
-### Details techniques
-
-**Companion (`index.js`)** - nouveau handler :
 ```javascript
-} else if (data.type === 'FINISH') {
-  console.log('Signal FINISH - Appui touche F (10s)');
-  await sendKey('f');
+if (data.type === 'GREEN') {
+  console.log('Signal VERT - Appui touche V (8s)');
+  await sendKey('v');
   setTimeout(async () => {
-    console.log('Signal FINISH - Relache touche F');
-    await sendKey('f');
-  }, 10000);
+    console.log('Signal VERT - Relache touche V');
+    await sendKey('v');
+  }, 8000);
+} else if (data.type === 'RED') {
+  console.log('Signal ROUGE - Appui touche R (8s)');
+  await sendKey('r');
+  setTimeout(async () => {
+    console.log('Signal ROUGE - Relache touche R');
+    await sendKey('r');
+  }, 8000);
 }
 ```
 
-**Hook (`useLightingControl.ts`)** - signature mise a jour :
-```typescript
-const sendSignal = useCallback((type: 'GREEN' | 'RED' | 'FINISH') => {
-```
+#### 2. `src/pages/Admin.tsx`
+Supprimer le code d'extinction manuelle dans `handleNextQuestion` (les lignes qui renvoient GREEN/RED avant de passer a la question suivante), puisque l'extinction est maintenant automatique apres 8 secondes.
 
-**Admin (`Admin.tsx`)** - dans `handleNextQuestion` apres le `nextQuestion()` :
-```typescript
-} else if (finished) {
-  sendSignal('FINISH');
-  toast({ title: "Termine !", description: "La partie est terminee" });
-}
-```
+#### 3. `lighting-companion/README.md`
+Mettre a jour la documentation pour indiquer que V et R sont maintenus 8 secondes.
 
 ### Fichiers modifies
-1. `lighting-companion/index.js` - ajout handler FINISH avec double appui espace de 10s
-2. `src/hooks/useLightingControl.ts` - ajout type FINISH
-3. `src/pages/Admin.tsx` - envoi signal FINISH quand la partie se termine
-4. `lighting-companion/README.md` - mise a jour documentation avec touche F
+1. `lighting-companion/index.js` - V et R maintenus 8 secondes
+2. `src/pages/Admin.tsx` - suppression de l'extinction manuelle
+3. `lighting-companion/README.md` - mise a jour documentation
 
