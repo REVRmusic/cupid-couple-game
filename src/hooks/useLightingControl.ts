@@ -41,10 +41,10 @@ export function useLightingControl() {
     };
   }, []);
 
-  const sendSignal = useCallback((type: 'GREEN' | 'RED' | 'FINISH') => {
+  const sendSignal = useCallback((type: 'GREEN' | 'RED' | 'FINISH', data?: { score?: number; total?: number }) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ type }));
-      console.log(`🎭 Signal ${type} sent successfully`);
+      ws.current.send(JSON.stringify({ type, ...data }));
+      console.log(`🎭 Signal ${type} sent successfully`, data || '');
     } else {
       console.warn(`🎭 Signal ${type} FAILED - WebSocket not open (state: ${ws.current?.readyState})`);
     }
