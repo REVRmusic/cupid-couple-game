@@ -1,27 +1,43 @@
 
-## Revenir a un simple appui pour V et R
 
-### Objectif
-Le systeme de double appui (toggle ON puis toggle OFF apres 8s) ne fonctionne pas bien avec le logiciel de lumieres. On revient a un simple appui unique sur V et R, et c'est le logiciel de lumieres qui gerera l'extinction automatique.
+## Diagnostiquer et corriger le signal FINISH
 
-Le signal FINISH garde son comportement actuel (double appui avec 10s de delai) sauf indication contraire.
+### Analyse
 
-### Modification : `lighting-companion/index.js`
+Le code dans `handleNextQuestion` appelle bien `sendSignal('FINISH')` quand la partie se termine. Cependant, il est possible que :
+1. La fonction `sendSignal` soit appelee mais que le WebSocket ne soit plus `OPEN` a ce moment-la
+2. Le signal soit envoye mais que le companion ne le traite pas correctement
 
-Supprimer les `setTimeout` pour GREEN et RED, ne garder qu'un seul appui :
+### Modifications
 
-```javascript
-if (data.type === 'GREEN') {
-  console.log('Signal VERT - Appui touche V');
-  await sendKey('v');
-} else if (data.type === 'RED') {
-  console.log('Signal ROUGE - Appui touche R');
-  await sendKey('r');
-} else if (data.type === 'FINISH') {
-  // Garde le comportement actuel avec 10s
-  ...
+#### 1. `src/hooks/useLightingControl.ts`
+Ajouter un log plus explicite dans `sendSignal` pour confirmer si le message est envoye ou non :
+
+```typescript
+const sendSignal = useCallback((type: 'GREEN' | 'RED' | 'FINISH') => {
+  if (ws.current?.readyState === WebSocket.OPEN) {
+    ws.current.send(JSON.stringify({ type }));
+    console.log(`Signal ${type} sent successfully`);
+  } else {
+    console.warn(`Signal ${type} FAILED - WebSocket not open (state: ${ws.current?.readyState})`);
+  }
+}, []);
+```
+
+#### 2. `src/pages/Admin.tsx`
+Ajouter un log avant l'appel a `sendSignal` dans `handleNextQuestion` pour confirmer que le code est atteint :
+
+```typescript
+} else if (finished) {
+  console.log('Game finished - sending FINISH signal');
+  sendSignal('FINISH');
+  toast({ title: "Termine !", description: "La partie est terminee" });
 }
 ```
 
-### Fichier modifie
-- `lighting-companion/index.js` uniquement
+Ces logs permettront de verifier dans la console du navigateur si le signal est bien envoye. Si les logs confirment que le signal part correctement, le probleme est cote companion ou logiciel de lumieres.
+
+### Fichiers modifies
+1. `src/hooks/useLightingControl.ts` - ajout de logs de diagnostic
+2. `src/pages/Admin.tsx` - ajout d'un log dans handleNextQuestion
+
