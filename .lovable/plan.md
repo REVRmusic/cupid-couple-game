@@ -1,49 +1,33 @@
 
 
-## Corriger definitivement le signal FINISH
+## Ajouter la musique de fin de partie au Companion App
 
-### Diagnostic
-
-Les signaux GREEN et RED fonctionnent parce qu'ils sont declenches de maniere **reactive** via un `useEffect` qui surveille `currentQuestion.is_correct`. Le signal FINISH, lui, depend uniquement du clic sur "Question suivante" dans `handleNextQuestion`. Meme avec le pre-envoi avant la mise a jour DB, le signal peut echouer si :
-- L'etat `game` est desynchronise au moment du clic
-- Le WebSocket n'est pas pret a ce moment precis
-- Un re-rendu rapide interfere avec l'envoi
-
-### Solution
-
-Adopter la meme approche reactive que GREEN/RED : ajouter un `useEffect` qui surveille le changement de statut du jeu et envoie automatiquement le signal FINISH quand `game.status` passe a `'finished'`.
+### Objectif
+Quand la partie se termine, le companion joue automatiquement une musique differente selon le score : musique speciale pour un score parfait 10/10, musique normale sinon. La touche F continue de s'enclencher normalement en parallele.
 
 ### Modifications
 
-#### `src/pages/Admin.tsx`
+#### 1. `src/hooks/useLightingControl.ts`
+- Enrichir `sendSignal` pour accepter un payload optionnel `{ score, total }`
 
-1. **Ajouter un ref pour tracker le statut precedent** (comme `prevIsCorrectRef` pour GREEN/RED) :
+#### 2. `src/pages/Admin.tsx`
+- Modifier les 3 appels `sendSignal('FINISH')` pour inclure le score : `sendSignal('FINISH', { score: game.score, total: game.total_questions })`
 
-```typescript
-const prevGameStatusRef = useRef<string | undefined>(undefined);
-```
+#### 3. `lighting-companion/index.js`
+- Ajouter une fonction `playMusic(filePath)` qui utilise Windows Media Player via PowerShell (supporte MP3/WAV/WMA)
+- Dans le handler FINISH : apres l'envoi de la touche F, jouer `music/perfect.mp3` si score parfait 10/10, sinon `music/normal.mp3`
 
-2. **Ajouter un useEffect reactif pour FINISH** :
+#### 4. Nouveau fichier `lighting-companion/music/README.md`
+- Instructions pour placer les fichiers `perfect.mp3` et `normal.mp3`
 
-```typescript
-// Send FINISH signal when game status transitions to 'finished'
-useEffect(() => {
-  if (game?.status === 'finished' && prevGameStatusRef.current === 'playing') {
-    console.log('🎭 Game status changed to finished - sending FINISH signal');
-    sendSignal('FINISH');
-  }
-  prevGameStatusRef.current = game?.status;
-}, [game?.status, sendSignal]);
-```
+### Fonctionnement
+1. La touche F s'enclenche immediatement (inchange)
+2. En parallele, la musique demarre selon le score recu
+3. La musique joue pendant 60 secondes maximum puis s'arrete
 
-3. **Garder aussi le pre-envoi dans handleNextQuestion** comme mesure de securite supplementaire (ceinture et bretelles).
-
-### Pourquoi ca va marcher
-
-- C'est exactement le meme mecanisme que GREEN/RED, qui fonctionne
-- Le signal est declenche par le changement d'etat reel, pas par un clic
-- Meme si le realtime met a jour `game.status` avant que `handleNextQuestion` ne termine, le useEffect captera la transition
-
-### Fichier modifie
-- `src/pages/Admin.tsx` : ajout d'un ref et d'un useEffect (~10 lignes)
+### Fichiers modifies
+- `src/hooks/useLightingControl.ts` (~2 lignes)
+- `src/pages/Admin.tsx` (~3 lignes)
+- `lighting-companion/index.js` (~25 lignes ajoutees)
+- `lighting-companion/music/README.md` (nouveau)
 
