@@ -1,31 +1,21 @@
 
-## Nouveaux raccourcis "O" et "P" pour la derniere question
 
-### Concept
-Sur la derniere question, au lieu d'envoyer V/R puis F separement, on envoie un seul signal combine :
-- **"O"** = derniere question correcte (remplace V + F)
-- **"P"** = derniere question incorrecte (remplace R + F)
+## Ecran de fin : retirer le classement et agrandir l'affichage
 
-Cela permet de declencher un programme lumineux specifique dans Daslight qui gere a la fois le resultat et la transition de fin de partie.
+### Modifications dans `src/pages/Public.tsx`
 
-### Modifications
+#### 1. Retirer le classement
+Supprimer le bloc "Leaderboard" (la Card contenant le Trophy, le titre "Classement" et la liste des scores) de l'ecran affiche quand `game?.status === 'finished'`.
 
-#### 1. `src/hooks/useLightingControl.ts`
-- Ajouter `'LAST_GREEN' | 'LAST_RED'` aux types de signaux acceptes par `sendSignal`
+#### 2. Agrandir l'affichage du resultat final
+- Augmenter la largeur max du conteneur (`max-w-4xl` vers `max-w-6xl`)
+- Augmenter la taille du logo
+- Augmenter la taille de l'emoji resultat (de `text-6xl` a `text-8xl` ou `text-9xl`)
+- Augmenter le titre "Bravo X et Y" (de `text-4xl` a `text-5xl` ou `text-6xl`)
+- Augmenter le score (de `text-6xl` a `text-8xl` ou `text-9xl`)
+- Augmenter le commentaire humoristique (de `text-2xl` a `text-3xl` ou `text-4xl`)
+- Augmenter le padding de la carte resultat (de `p-12` a `p-16` ou `p-20`)
 
-#### 2. `src/pages/Admin.tsx`
-- Modifier le `useEffect` qui detecte le resultat (lignes 118-129) : si c'est la derniere question, envoyer `LAST_GREEN` ou `LAST_RED` au lieu de `GREEN` ou `RED`
-- Supprimer le `useEffect` d'auto-finish (lignes 140-160) car le signal combine remplace ce mecanisme
-- Supprimer l'envoi du signal `FINISH` reactif (lignes 131-138) car il est inclus dans O/P
-- Conserver l'appel automatique a `handleNextQuestion()` apres un delai de 2,5s pour terminer la partie cote base de donnees (mais sans envoyer de signal FINISH supplementaire)
+### Fichier modifie
+- `src/pages/Public.tsx` (~20 lignes modifiees)
 
-#### 3. `lighting-companion/index.js`
-- Ajouter les handlers pour `LAST_GREEN` et `LAST_RED` :
-  - `LAST_GREEN` : envoie la touche `o` + lance la musique selon le score
-  - `LAST_RED` : envoie la touche `p` + lance la musique selon le score
-- Mettre a jour les logs de demarrage pour documenter les nouvelles touches O et P
-
-### Fichiers modifies
-- `src/hooks/useLightingControl.ts` (~1 ligne modifiee)
-- `src/pages/Admin.tsx` (~15 lignes modifiees)
-- `lighting-companion/index.js` (~20 lignes ajoutees)
