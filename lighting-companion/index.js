@@ -41,19 +41,11 @@ wss.on('connection', (ws) => {
       const data = JSON.parse(message.toString());
 
       if (data.type === 'GREEN') {
-        console.log('Signal VERT - Appui touche V (8s)');
+        console.log('Signal VERT - Appui touche V');
         await sendKey('v');
-        setTimeout(async () => {
-          console.log('Signal VERT - Relache touche V');
-          await sendKey('v');
-        }, 8000);
       } else if (data.type === 'RED') {
-        console.log('Signal ROUGE - Appui touche R (8s)');
+        console.log('Signal ROUGE - Appui touche R');
         await sendKey('r');
-        setTimeout(async () => {
-          console.log('Signal ROUGE - Relache touche R');
-          await sendKey('r');
-        }, 8000);
       } else if (data.type === 'FINISH') {
         console.log('Signal FINISH - Appui touche F (10s)');
         await sendKey('f');
