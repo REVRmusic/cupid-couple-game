@@ -3,7 +3,7 @@ import { HeartBackground } from '@/components/HeartBackground';
 import { Logo } from '@/components/Logo';
 import { Card, CardContent } from '@/components/ui/card';
 import { useGame, useActiveGame, useLeaderboard } from '@/hooks/useGame';
-import { Heart, Trophy, Crown, Medal } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { PartnerLogos } from '@/components/PartnerLogos';
 import { ConfettiCelebration } from '@/components/ConfettiCelebration';
 
@@ -86,8 +86,8 @@ export default function Public() {
     return (
       <div className="min-h-screen bg-blush p-8">
         <HeartBackground />
-        <div className="relative z-10 max-w-4xl mx-auto">
-          <div className="text-center mb-12">
+      <div className="relative z-10 max-w-6xl mx-auto">
+          <div className="text-center mb-16">
             <Logo size="lg" />
           </div>
 
@@ -98,16 +98,16 @@ export default function Public() {
             return (
               <>
                 {isPerfectScore && <ConfettiCelebration />}
-                <Card className="romantic-card mb-12 animate-scale-in">
-                  <CardContent className="p-12 text-center">
-                    <div className="text-6xl mb-4">{emoji}</div>
-                    <h2 className="text-4xl font-display text-foreground mb-4">
+                <Card className="romantic-card animate-scale-in">
+                  <CardContent className="p-20 text-center">
+                    <div className="text-9xl mb-8">{emoji}</div>
+                    <h2 className="text-6xl font-display text-foreground mb-6">
                       Bravo {game.player1_name} & {game.player2_name} !
                     </h2>
-                    <p className="text-6xl font-bold text-primary mb-4">
+                    <p className="text-9xl font-bold text-primary mb-6">
                       {game.score} / {game.total_questions}
                     </p>
-                    <p className="text-2xl font-body text-muted-foreground">
+                    <p className="text-4xl font-body text-muted-foreground">
                       {comment}
                     </p>
                   </CardContent>
@@ -115,57 +115,6 @@ export default function Public() {
               </>
             );
           })()}
-
-          {/* Leaderboard */}
-          <Card className="romantic-card">
-            <CardContent className="p-8">
-              <div className="flex items-center justify-center gap-3 mb-8">
-                <Trophy className="w-8 h-8 text-gold" />
-                <h2 className="text-3xl font-display text-foreground">Classement</h2>
-              </div>
-              
-              {leaderboard.length === 0 ? (
-                <p className="text-center text-muted-foreground font-body text-lg">
-                  Aucune partie terminée pour le moment
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {leaderboard.map((g, index) => (
-                    <div
-                      key={g.id}
-                      className={`flex items-center p-4 rounded-xl ${
-                        index === 0 ? 'bg-gold/20' : 
-                        index === 1 ? 'bg-muted' : 
-                        index === 2 ? 'bg-orange-100' : 'bg-card'
-                      }`}
-                    >
-                      <div className="w-12 text-center">
-                        {index === 0 ? (
-                          <Crown className="w-8 h-8 text-gold mx-auto" />
-                        ) : index === 1 ? (
-                          <Medal className="w-7 h-7 text-gray-400 mx-auto" />
-                        ) : index === 2 ? (
-                          <Medal className="w-6 h-6 text-orange-400 mx-auto" />
-                        ) : (
-                          <span className="text-xl font-bold text-muted-foreground">{index + 1}</span>
-                        )}
-                      </div>
-                      <div className="flex-1 ml-4">
-                        <p className="font-display text-xl text-foreground">
-                          {g.player1_name} & {g.player2_name}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-primary">
-                          {g.score}/{g.total_questions}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
           
           <PartnerLogos />
         </div>
