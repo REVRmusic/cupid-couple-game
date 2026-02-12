@@ -1,14 +1,42 @@
-import { Heart } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Heart, Maximize } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { HeartBackground } from "@/components/HeartBackground";
 import { Logo } from "@/components/Logo";
 
 const Index = () => {
+  const [showFullscreenBtn, setShowFullscreenBtn] = useState(false);
+
+  useEffect(() => {
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.matchMedia("(display-mode: fullscreen)").matches;
+    setShowFullscreenBtn(!isStandalone && !!document.documentElement.requestFullscreen);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-romantic flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <HeartBackground />
       
+      {showFullscreenBtn && (
+        <button
+          onClick={toggleFullscreen}
+          className="absolute top-4 right-4 z-20 p-2 rounded-full bg-background/60 backdrop-blur-sm text-foreground/60 hover:text-foreground hover:bg-background/80 transition-all"
+          aria-label="Plein écran"
+        >
+          <Maximize className="h-5 w-5" />
+        </button>
+      )}
+
       <div className="z-10 text-center space-y-8 max-w-2xl">
         <Logo size="lg" />
         
