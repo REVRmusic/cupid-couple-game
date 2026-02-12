@@ -1,38 +1,54 @@
 
 
-## Corriger l'extinction des lumieres au passage de question
+## Ajouter un signal "FINISH" avec touche F maintenue 10 secondes
 
-### Le probleme
-Le bouton "Question suivante" s'active des que les deux joueurs ont repondu, mais `is_correct` est mis a jour dans un second appel base de donnees asynchrone (dans `submitAnswer`). Quand l'admin clique rapidement, `currentQuestion?.is_correct` est encore `null`, donc aucune des deux conditions n'est remplie et aucun signal n'est envoye.
+### Objectif
+A la fin du quizz, envoyer un signal special au companion qui appuiera sur la touche `F` pendant 10 secondes pour activer un programme lumineux de fin de partie.
 
-### La solution
-Remplacer la verification de `is_correct` par une comparaison directe des reponses des joueurs. Les reponses (`player1_answer` et `player2_answer`) sont toujours disponibles quand le bouton est actif.
+### Modifications
 
-### Modification : `src/pages/Admin.tsx`
+#### 1. `lighting-companion/index.js`
+- Ajouter une fonction `holdKey(key, durationMs)` qui utilise PowerShell pour maintenir une touche enfoncee pendant une duree donnee (via `SendKeys` avec un `Start-Sleep` entre le press et le release, en utilisant l'API `keybd_event` de Windows pour simuler un appui maintenu)
+- Note : `SendKeys.SendWait` ne supporte pas le maintien de touche. On utilisera plutot deux appuis : un premier appui sur `F` pour activer, puis un second appui 10s plus tard pour desactiver (meme logique toggle que pour V et R)
+- Ajouter le traitement du signal `FINISH` : appui sur `f`, puis `setTimeout` de 10 secondes, puis re-appui sur `f`
+- Mettre a jour les logs de demarrage pour afficher la touche F
 
-Remplacer dans `handleNextQuestion` (lignes 184-189) :
+#### 2. `src/hooks/useLightingControl.ts`
+- Etendre le type du signal de `'GREEN' | 'RED'` a `'GREEN' | 'RED' | 'FINISH'`
 
-```typescript
-// Avant (ne fonctionne pas - is_correct peut etre null)
-if (currentQuestion?.is_correct === true) {
-  sendSignal('GREEN');
-} else if (currentQuestion?.is_correct === false) {
-  sendSignal('RED');
+#### 3. `src/pages/Admin.tsx`
+- Dans `handleNextQuestion`, quand `finished === true`, envoyer `sendSignal('FINISH')` apres avoir eteint la lumiere de la derniere question
+
+### Details techniques
+
+**Companion (`index.js`)** - nouveau handler :
+```javascript
+} else if (data.type === 'FINISH') {
+  console.log('Signal FINISH - Appui touche F (10s)');
+  await sendKey('f');
+  setTimeout(async () => {
+    console.log('Signal FINISH - Relache touche F');
+    await sendKey('f');
+  }, 10000);
 }
 ```
 
-Par :
-
+**Hook (`useLightingControl.ts`)** - signature mise a jour :
 ```typescript
-// Apres (fonctionne toujours - les reponses sont disponibles)
-if (currentQuestion?.player1_answer && currentQuestion?.player2_answer) {
-  if (currentQuestion.player1_answer === currentQuestion.player2_answer) {
-    sendSignal('GREEN');
-  } else {
-    sendSignal('RED');
-  }
+const sendSignal = useCallback((type: 'GREEN' | 'RED' | 'FINISH') => {
+```
+
+**Admin (`Admin.tsx`)** - dans `handleNextQuestion` apres le `nextQuestion()` :
+```typescript
+} else if (finished) {
+  sendSignal('FINISH');
+  toast({ title: "Termine !", description: "La partie est terminee" });
 }
 ```
 
-### Aucun autre fichier modifie
-Seule cette condition dans `handleNextQuestion` change. Le companion et le hook restent identiques.
+### Fichiers modifies
+1. `lighting-companion/index.js` - ajout handler FINISH avec double appui espace de 10s
+2. `src/hooks/useLightingControl.ts` - ajout type FINISH
+3. `src/pages/Admin.tsx` - envoi signal FINISH quand la partie se termine
+4. `lighting-companion/README.md` - mise a jour documentation avec touche F
+
