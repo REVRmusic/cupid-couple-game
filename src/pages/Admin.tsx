@@ -110,6 +110,8 @@ export default function Admin() {
   
   // Track previous is_correct value to detect changes
   const prevIsCorrectRef = useRef<boolean | null | undefined>(undefined);
+  // Track previous game status to detect transition to 'finished'
+  const prevGameStatusRef = useRef<string | undefined>(undefined);
   
   // Send lighting signal when result is revealed
   useEffect(() => {
@@ -125,6 +127,15 @@ export default function Admin() {
     }
     prevIsCorrectRef.current = currentQuestion?.is_correct;
   }, [currentQuestion?.is_correct, sendSignal]);
+
+  // Send FINISH signal reactively when game status transitions to 'finished'
+  useEffect(() => {
+    if (game?.status === 'finished' && prevGameStatusRef.current === 'playing') {
+      console.log('🎭 Game status changed to finished - sending FINISH signal (reactive)');
+      sendSignal('FINISH');
+    }
+    prevGameStatusRef.current = game?.status;
+  }, [game?.status, sendSignal]);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
