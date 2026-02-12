@@ -146,10 +146,10 @@ export default function Admin() {
       currentQuestion?.is_correct !== null &&
       currentQuestion?.is_correct !== undefined
     ) {
-      console.log('🎭 Last question answered - auto-finishing in 3.5 seconds');
+      console.log('🎭 Last question answered - auto-finishing in 2.5 seconds');
       autoFinishTimerRef.current = setTimeout(() => {
         handleNextQuestion();
-      }, 3500);
+      }, 2500);
       return () => {
         if (autoFinishTimerRef.current) {
           clearTimeout(autoFinishTimerRef.current);
