@@ -182,10 +182,12 @@ export default function Admin() {
     if (!game) return;
     
     // Éteindre les lumières en renvoyant le même signal (toggle off)
-    if (currentQuestion?.is_correct === true) {
-      sendSignal('GREEN');
-    } else if (currentQuestion?.is_correct === false) {
-      sendSignal('RED');
+    if (currentQuestion?.player1_answer && currentQuestion?.player2_answer) {
+      if (currentQuestion.player1_answer === currentQuestion.player2_answer) {
+        sendSignal('GREEN');
+      } else {
+        sendSignal('RED');
+      }
     }
     
     const { error, finished } = await nextQuestion(game.id, game.current_question_index, game.total_questions);
