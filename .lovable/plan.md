@@ -1,62 +1,141 @@
 
 
-## Affichage plein écran sur tablette Android
+## Solution : Companion sans aucune compilation native
 
-La meilleure solution combine deux approches complémentaires pour garantir un affichage plein écran professionnel :
+### Le problème
+- `windows-build-tools` est obsolète et échoue à l'installation
+- `robotjs` et `@nut-tree/nut-js` nécessitent tous les deux une compilation C++ native qui ne fonctionne pas
+- Ces outils sont abandonnés ou très difficiles à installer sur Windows moderne
 
-### Approche 1 : PWA (Progressive Web App) - Solution principale
+### La solution
+Utiliser **PowerShell** (déjà installé sur tout Windows) via `child_process` de Node.js pour simuler les appuis clavier. Cela signifie :
+- **Aucune dépendance native** a compiler
+- **Seule dépendance** : le package `ws` (pur JavaScript)
+- `npm install` fonctionnera du premier coup, sans erreur
 
-Transformer l'app en PWA avec le mode `standalone` (ou `fullscreen`). Une fois installée sur l'écran d'accueil de la tablette, l'app s'ouvrira **sans barre de navigation du navigateur**, exactement comme une application native.
+### Comment ca marche
+Node.js appelle PowerShell en arrière-plan avec la classe .NET `System.Windows.Forms.SendKeys` pour envoyer les touches 'v' et 'r' au logiciel Daslight/Sunlite.
 
-### Approche 2 : Fullscreen API - Complément
+### Fichiers a modifier
 
-Ajouter un bouton discret sur la page d'accueil pour activer le mode plein écran via l'API Fullscreen du navigateur. Utile si l'app est ouverte directement dans Chrome sans être installée.
+#### `lighting-companion/package.json`
+- Retirer `robotjs` et `@nut-tree/nut-js` des dépendances
+- Garder uniquement `ws` comme dépendance
 
----
+#### `lighting-companion/index.js`
+- Supprimer l'import de robotjs
+- Utiliser `child_process.exec` pour appeler PowerShell
+- Commande PowerShell : `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('v')`
+- La fonction `sendKey` devient asynchrone mais sans dépendance native
 
-### Modifications techniques
+### Etapes sur le Mac
 
-#### 1. Installer et configurer `vite-plugin-pwa`
+1. Supprimer l'ancien dossier `lighting-companion` s'il existe
+2. Creer un nouveau dossier `lighting-companion`
+3. Y mettre les deux fichiers (`package.json` et `index.js`)
+4. **Ne pas** faire `npm install` sur Mac
+5. Copier le dossier entier sur cle USB
 
-- Installer la dépendance `vite-plugin-pwa`
-- Configurer dans `vite.config.ts` avec un manifest incluant :
-  - `display: "fullscreen"` (supprime toute barre système)
-  - `name`, `short_name`, `theme_color`, `background_color` adaptés au thème romantique
-  - Icônes PWA (utilisation de placeholder pour commencer)
-- Ajouter `navigateFallbackDenylist: [/^\/~oauth/]` dans la config workbox
+### Etapes sur le PC Windows
 
-#### 2. Mettre à jour `index.html`
+1. Brancher la cle USB
+2. Copier le dossier `lighting-companion` sur le Bureau
+3. Ouvrir le menu Demarrer, taper `cmd`, ouvrir l'Invite de commandes
+4. Taper : `cd Desktop\lighting-companion`
+5. Taper : `npm install` (sera tres rapide, aucune compilation)
+6. Taper : `npm start`
+7. Ouvrir Daslight/Sunlite et le mettre au premier plan
+8. Ouvrir la page Admin du jeu dans Chrome sur le meme PC
 
-- Ajouter les balises meta pour PWA :
-  - `<meta name="mobile-web-app-capable" content="yes">`
-  - `<meta name="apple-mobile-web-app-capable" content="yes">`
-  - `<meta name="theme-color" content="...">`
-  - `<link rel="manifest" href="/manifest.webmanifest">`
+### Code complet
 
-#### 3. Ajouter un bouton "Plein écran" sur la page d'accueil (`src/pages/Index.tsx`)
+**package.json** :
+```json
+{
+  "name": "lighting-companion",
+  "version": "1.0.0",
+  "description": "Companion app pour controler les lumieres via simulation clavier",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
+```
 
-- Un bouton qui appelle `document.documentElement.requestFullscreen()` au clic
-- Visible uniquement si l'app n'est pas déjà en mode standalone/fullscreen
-- Détection via `window.matchMedia('(display-mode: standalone)')` ou `(display-mode: fullscreen)`
-- Style discret et intégré au design existant
+**index.js** :
+```javascript
+const WebSocket = require('ws');
+const { exec } = require('child_process');
 
-#### 4. Créer les icônes PWA
+const PORT = 3001;
+const wss = new WebSocket.Server({ port: PORT });
 
-- Ajouter des icônes dans `public/` (192x192 et 512x512) - des placeholders pour commencer
+function sendKey(key) {
+  return new Promise((resolve, reject) => {
+    const cmd = `powershell -command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${key}')"`;
+    exec(cmd, (error) => {
+      if (error) {
+        console.error('Erreur envoi touche:', error.message);
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+  });
+}
 
----
+console.log('');
+console.log('========================================');
+console.log('  LIGHTING COMPANION - Cupid Game');
+console.log('========================================');
+console.log(`  Serveur demarre sur le port ${PORT}`);
+console.log('');
+console.log('  Touches configurees:');
+console.log('    V = Vert (bonne reponse)');
+console.log('    R = Rouge (mauvaise reponse)');
+console.log('');
+console.log('  En attente de connexion...');
+console.log('========================================');
+console.log('');
 
-### Utilisation sur la tablette Redmi Pad 2
+wss.on('connection', (ws) => {
+  console.log('Connexion etablie avec la page Admin');
 
-1. Ouvrir l'app dans Chrome
-2. Menu Chrome (trois points) → "Ajouter à l'écran d'accueil" ou "Installer l'application"
-3. L'app s'ouvre désormais en plein écran total, sans barre de navigation
+  ws.on('message', async (message) => {
+    try {
+      const data = JSON.parse(message.toString());
 
-| Fichier | Action |
-|---------|--------|
-| `vite.config.ts` | Modifier - Ajouter vite-plugin-pwa |
-| `index.html` | Modifier - Ajouter meta tags PWA |
-| `src/pages/Index.tsx` | Modifier - Ajouter bouton plein écran |
-| `public/pwa-192x192.png` | Créer - Icône PWA |
-| `public/pwa-512x512.png` | Créer - Icône PWA |
+      if (data.type === 'GREEN') {
+        console.log('Signal VERT - Appui touche V');
+        await sendKey('v');
+      } else if (data.type === 'RED') {
+        console.log('Signal ROUGE - Appui touche R');
+        await sendKey('r');
+      }
+    } catch (e) {
+      console.error('Erreur:', e.message);
+    }
+  });
 
+  ws.on('close', () => {
+    console.log('Connexion fermee');
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('Arret du serveur...');
+  wss.close(() => process.exit(0));
+});
+```
+
+### Pourquoi cette solution est meilleure
+- `ws` est du pur JavaScript, aucune compilation necessaire
+- `child_process` et `exec` font partie de Node.js (rien a installer)
+- PowerShell est pre-installe sur tous les Windows depuis Windows 7
+- `npm install` prendra 2 secondes au lieu d'echouer
+
+### Mise a jour des fichiers dans le projet Lovable
+Les fichiers `lighting-companion/package.json` et `lighting-companion/index.js` dans le repo seront mis a jour pour refléter cette nouvelle approche. Le hook `useLightingControl.ts` ne change pas car il communique via WebSocket, independamment de la methode de simulation clavier cote serveur.
