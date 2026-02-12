@@ -110,8 +110,6 @@ export default function Admin() {
   
   // Track previous is_correct value to detect changes
   const prevIsCorrectRef = useRef<boolean | null | undefined>(undefined);
-  // Track previous game status to detect transition to 'finished'
-  const prevGameStatusRef = useRef<string | undefined>(undefined);
   
   // Send lighting signal when result is revealed
   useEffect(() => {
@@ -119,23 +117,22 @@ export default function Admin() {
         currentQuestion?.is_correct !== undefined &&
         prevIsCorrectRef.current === null) {
       // Result just changed from null to a value
-      if (currentQuestion.is_correct === true) {
-        sendSignal('GREEN');
+      const isLastQuestion = game && game.current_question_index + 1 >= game.total_questions;
+      if (isLastQuestion) {
+        // Last question: send combined signal (O or P) instead of V/R + F
+        const signal = currentQuestion.is_correct ? 'LAST_GREEN' : 'LAST_RED';
+        console.log(`🎭 Last question - sending ${signal} (combined signal)`);
+        sendSignal(signal, { score: game.score + (currentQuestion.is_correct ? 1 : 0), total: game.total_questions });
       } else {
-        sendSignal('RED');
+        if (currentQuestion.is_correct === true) {
+          sendSignal('GREEN');
+        } else {
+          sendSignal('RED');
+        }
       }
     }
     prevIsCorrectRef.current = currentQuestion?.is_correct;
-  }, [currentQuestion?.is_correct, sendSignal]);
-
-  // Send FINISH signal reactively when game status transitions to 'finished'
-  useEffect(() => {
-    if (game?.status === 'finished' && prevGameStatusRef.current === 'playing') {
-      console.log('🎭 Game status changed to finished - sending FINISH signal (reactive)');
-      sendSignal('FINISH', { score: game.score, total: game.total_questions });
-    }
-    prevGameStatusRef.current = game?.status;
-  }, [game?.status, game?.score, game?.total_questions, sendSignal]);
+  }, [currentQuestion?.is_correct, sendSignal, game]);
 
   // Auto-finish game 5 seconds after last question result is revealed
   const autoFinishTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -223,20 +220,10 @@ export default function Admin() {
       wsConnected: isLightingConnected
     });
     
-    if (isLastQuestion) {
-      console.log('🎭 Sending FINISH signal before DB update');
-      sendSignal('FINISH', { score: game.score, total: game.total_questions });
-      // Wait 200ms to ensure the WebSocket message is flushed
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-    
     const { error, finished } = await nextQuestion(game.id, game.current_question_index, game.total_questions);
     if (error) {
       toast({ title: "Erreur", description: "Impossible de passer à la question suivante", variant: "destructive" });
     } else if (finished) {
-      // Safety net: send FINISH again after DB confirms
-      console.log('🎭 DB confirmed finished - sending FINISH signal again as safety net');
-      sendSignal('FINISH', { score: game.score, total: game.total_questions });
       toast({ title: "Terminé !", description: "La partie est terminée" });
     }
   };
