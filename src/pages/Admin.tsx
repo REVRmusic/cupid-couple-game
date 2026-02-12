@@ -181,12 +181,18 @@ export default function Admin() {
   const handleNextQuestion = async () => {
     if (!game) return;
     
+    // Detect if this is the last question BEFORE the DB update
+    const isLastQuestion = game.current_question_index + 1 >= game.total_questions;
+    
+    if (isLastQuestion) {
+      console.log('🎭 Last question - sending FINISH signal before DB update');
+      sendSignal('FINISH');
+    }
+    
     const { error, finished } = await nextQuestion(game.id, game.current_question_index, game.total_questions);
     if (error) {
       toast({ title: "Erreur", description: "Impossible de passer à la question suivante", variant: "destructive" });
     } else if (finished) {
-      console.log('🎭 Game finished - sending FINISH signal');
-      sendSignal('FINISH');
       toast({ title: "Terminé !", description: "La partie est terminée" });
     }
   };
