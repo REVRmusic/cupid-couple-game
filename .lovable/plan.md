@@ -1,40 +1,30 @@
 
 
-## Corriger le score parfait et le lecteur multimedia
+## Fin de partie automatique apres la derniere question
 
-### Probleme 1 : Score parfait mal detecte
+### Comportement actuel
+Quand les deux joueurs repondent a la derniere question, le resultat (vert/rouge) s'affiche mais l'admin doit cliquer manuellement sur "Question suivante" pour terminer la partie et envoyer le signal FINISH.
 
-Dans `lighting-companion/index.js` ligne 87, la condition est :
+### Nouveau comportement
+Quand les deux joueurs repondent a la **derniere question** :
+1. Le signal vert (V) ou rouge (R) est envoye immediatement (inchange)
+2. **5 secondes apres**, la partie se termine automatiquement et le signal FINISH est envoye
 
-```javascript
-const isPerfect = data.score === data.total && data.total === 10;
-```
+Le bouton "Question suivante" reste fonctionnel pour les questions intermediaires et comme securite sur la derniere question.
 
-Le `&& data.total === 10` est en trop. Avec une partie de 3 questions et un score de 3/3, ca ne passe jamais en "parfait". Il faut simplement verifier que le score est egal au total :
+### Modification technique
 
-```javascript
-const isPerfect = data.score === data.total;
-```
+**Fichier : `src/pages/Admin.tsx`**
 
-### Probleme 2 : Lecteur multimedia
+Ajouter un `useEffect` qui detecte quand :
+- La partie est en cours (`game.status === 'playing'`)
+- C'est la derniere question (`game.current_question_index + 1 >= game.total_questions`)
+- Le resultat vient d'etre revele (`currentQuestion.is_correct` passe de `null` a une valeur)
 
-Le code utilise `WMPlayer.OCX` (Windows Media Player classique) qui n'est plus installe par defaut sur les versions recentes de Windows. Il faut utiliser a la place la commande `start` qui ouvre le fichier avec l'application par defaut du systeme (le lecteur multimedia moderne de Windows).
+Dans ce cas, lancer un `setTimeout` de 5 secondes qui appelle `handleNextQuestion()` automatiquement (ce qui termine la partie et envoie le signal FINISH).
 
-La fonction `playMusic` sera modifiee pour utiliser :
-
-```javascript
-const cmd = `start "" "${absolutePath}"`;
-```
-
-Cela ouvrira le fichier MP3 avec le lecteur multimedia par defaut de Windows. Pour arreter la musique precedente, on utilisera `taskkill` pour fermer le processus du lecteur.
-
-### Modifications
-
-#### `lighting-companion/index.js`
-
-1. **Ligne 87** : Retirer `&& data.total === 10` de la condition `isPerfect`
-2. **Fonction `playMusic`** : Remplacer la commande PowerShell `WMPlayer.OCX` par `start ""` qui lance le lecteur multimedia par defaut de Windows
-3. **Fonction `stopMusic`** : Adapter pour fermer le processus du lecteur multimedia si necessaire
+Le timeout sera nettoye si le composant se demonte ou si l'admin clique manuellement avant les 5 secondes.
 
 ### Fichier modifie
-- `lighting-companion/index.js` (~10 lignes modifiees)
+- `src/pages/Admin.tsx` (~15 lignes ajoutees)
+
