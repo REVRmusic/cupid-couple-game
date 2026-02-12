@@ -19,6 +19,7 @@ Cette application écoute les signaux envoyés par la page Admin du jeu Cupid et
 |--------|--------|---------------|
 | **V** | VERT | Bonne réponse (le couple a répondu pareil) |
 | **R** | ROUGE | Mauvaise réponse (réponses différentes) |
+| **F** | FINISH | Fin de partie (maintenu 10 secondes) |
 
 ## Installation
 
