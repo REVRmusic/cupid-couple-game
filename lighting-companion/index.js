@@ -22,23 +22,21 @@ function sendKey(key) {
 let musicProcess = null;
 
 function stopMusic() {
-  if (musicProcess) {
-    musicProcess.kill();
-    musicProcess = null;
-    console.log('Musique arretee');
-  }
+  // Fermer le lecteur multimedia Windows si en cours
+  exec('taskkill /IM "Microsoft.Media.Player.exe" /F', () => {});
+  exec('taskkill /IM "wmplayer.exe" /F', () => {});
+  console.log('Musique arretee');
 }
 
 function playMusic(filePath) {
   stopMusic();
   const absolutePath = path.resolve(__dirname, filePath);
   console.log(`Lecture musique: ${absolutePath}`);
-  const cmd = `powershell -command "$player = New-Object -ComObject WMPlayer.OCX; $player.URL = '${absolutePath}'; $player.controls.play(); Start-Sleep -Seconds 60"`;
-  musicProcess = exec(cmd, (error) => {
-    if (error && error.killed !== true) {
+  const cmd = `start "" "${absolutePath}"`;
+  exec(cmd, (error) => {
+    if (error) {
       console.error('Erreur lecture musique:', error.message);
     }
-    musicProcess = null;
   });
 }
 
@@ -84,7 +82,7 @@ wss.on('connection', (ws) => {
 
         // Jouer la musique selon le score
         if (data.score !== undefined && data.total !== undefined) {
-          const isPerfect = data.score === data.total && data.total === 10;
+          const isPerfect = data.score === data.total;
           if (isPerfect) {
             console.log(`SCORE PARFAIT ${data.score}/${data.total} ! Musique speciale !`);
             playMusic('music/perfect.mp3');
