@@ -181,15 +181,6 @@ export default function Admin() {
   const handleNextQuestion = async () => {
     if (!game) return;
     
-    // Éteindre les lumières en renvoyant le même signal (toggle off)
-    if (currentQuestion?.player1_answer && currentQuestion?.player2_answer) {
-      if (currentQuestion.player1_answer === currentQuestion.player2_answer) {
-        sendSignal('GREEN');
-      } else {
-        sendSignal('RED');
-      }
-    }
-    
     const { error, finished } = await nextQuestion(game.id, game.current_question_index, game.total_questions);
     if (error) {
       toast({ title: "Erreur", description: "Impossible de passer à la question suivante", variant: "destructive" });
