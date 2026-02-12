@@ -27,6 +27,7 @@ console.log('');
 console.log('  Touches configurees:');
 console.log('    V = Vert (bonne reponse)');
 console.log('    R = Rouge (mauvaise reponse)');
+console.log('    F = Finish (fin de partie, 10s)');
 console.log('');
 console.log('  En attente de connexion...');
 console.log('========================================');
@@ -45,6 +46,13 @@ wss.on('connection', (ws) => {
       } else if (data.type === 'RED') {
         console.log('Signal ROUGE - Appui touche R');
         await sendKey('r');
+      } else if (data.type === 'FINISH') {
+        console.log('Signal FINISH - Appui touche F (10s)');
+        await sendKey('f');
+        setTimeout(async () => {
+          console.log('Signal FINISH - Relache touche F');
+          await sendKey('f');
+        }, 10000);
       }
     } catch (e) {
       console.error('Erreur:', e.message);

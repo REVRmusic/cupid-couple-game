@@ -41,7 +41,7 @@ export function useLightingControl() {
     };
   }, []);
 
-  const sendSignal = useCallback((type: 'GREEN' | 'RED') => {
+  const sendSignal = useCallback((type: 'GREEN' | 'RED' | 'FINISH') => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type }));
       console.log(`🎭 Signal ${type} sent`);
