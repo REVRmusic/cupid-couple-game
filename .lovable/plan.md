@@ -1,59 +1,81 @@
 
 
-## Redesign de l'ecran d'attente entre les seances
+## Fix : Le score de fin de partie ne s'affiche plus sur l'ecran public
 
-### Objectif
-Modifier uniquement l'ecran d'attente (waiting screen) dans `Public.tsx` pour :
-- Monter le titre "Jeu des Couples" en haut
-- Retirer le coeur central
-- Afficher "Prochaine seance a [heure]" juste sous le titre
-- Afficher le Top 3 du classement au centre
-- Logos partenaires en bas
-- Tout visible sans scroll, responsive
+### Cause racine
 
-### Layout propose
+Quand une partie se termine (status = 'finished'), le hook `useActiveGame()` cherche les parties avec status `['waiting', 'playing']`. Il ne trouve plus rien, donc `activeGame` devient `null`. L'effet a la ligne 92-94 detecte `!activeGame` et met immediatement `showWaitingScreen = true`, ce qui affiche l'ecran d'attente et saute completement l'affichage du score.
+
+Le timer de 2 minutes n'a jamais l'occasion de se declencher.
+
+### Solution
+
+Modifier la logique dans `src/pages/Public.tsx` pour que l'ecran d'attente ne s'active pas quand un jeu termine vient de se terminer et que le timer de 2 minutes n'est pas encore ecoule.
+
+### Modifications dans `src/pages/Public.tsx`
+
+**a) Garder une reference au dernier jeu termine**
+
+Ajouter un state `finishedGameId` qui memorise l'ID du jeu qui vient de finir. Cela permet de savoir qu'on est dans la phase "affichage du score pendant 2 min" meme si `activeGame` est devenu `null`.
+
+**b) Modifier l'effet "no active game" (lignes 92-99)**
+
+Ne plus mettre `showWaitingScreen = true` immediatement quand `activeGame` est null. A la place, verifier si on est dans la phase d'affichage du score (timer de 2 min en cours). Si oui, ne rien faire - le timer s'en chargera.
 
 ```text
-+----------------------------------+
-|                                  |
-|      [coeur] Jeu des Couples     |
-|    Prochaine seance a 11h45      |
-|                                  |
-|         --- Top 3 ---            |
-|  1. Alice & Bob    8/10          |
-|  2. Clara & David  7/10          |
-|  3. Eve & Frank    6/10          |
-|                                  |
-|       [logos partenaires]        |
-+----------------------------------+
+useEffect(() => {
+  if (!loadingActive && !activeGame && !waitingTimerRef.current && game?.status !== 'finished') {
+    setShowWaitingScreen(true);
+  }
+  if (activeGame && activeGame.status !== 'finished') {
+    setShowWaitingScreen(false);
+  }
+}, [activeGame, loadingActive, game?.status]);
 ```
 
-### Modifications
+**c) Modifier le timer de 2 minutes (lignes 68-89)**
 
-#### `src/pages/Public.tsx` (lignes 122-147)
+Supprimer le cleanup qui annule le timer a chaque re-render (meme probleme que le fix precedent sur Admin). Utiliser un ref de garde pour ne creer le timer qu'une seule fois par partie terminee.
 
-Remplacer le bloc de l'ecran d'attente :
+```text
+const finishTimerScheduledRef = useRef<string | null>(null);
 
-- **Supprimer** le `<Heart>` central (ligne 130)
-- **Deplacer** le Logo tout en haut avec un margin top reduit
-- **Ajouter** le texte "Prochaine seance a..." directement sous le logo (sans icone Clock, juste du texte)
-- **Ajouter** le Top 3 du classement en utilisant le hook `useLeaderboard` (deja importe)
-- **Utiliser** `h-screen` avec `flex flex-col justify-between` pour repartir verticalement : titre+heure en haut, classement au centre, logos en bas
-- Tailles de texte adaptees avec des classes responsive (`text-2xl md:text-4xl`, etc.)
+useEffect(() => {
+  if (game?.status === 'finished' && finishTimerScheduledRef.current !== game.id) {
+    finishTimerScheduledRef.current = game.id;
+    waitingTimerRef.current = setTimeout(() => {
+      setShowWaitingScreen(true);
+      waitingTimerRef.current = null;
+    }, 2 * 60 * 1000);
+  }
 
-Le top 3 sera affiche sous forme de cartes ou lignes stylisees :
-- Medaille emoji (or/argent/bronze) + noms du couple + score (ex: "8/10")
-- Tailles de police suffisamment grandes pour etre lisibles sur projecteur
+  if (game?.status === 'playing' || game?.status === 'waiting') {
+    finishTimerScheduledRef.current = null;
+    setShowWaitingScreen(false);
+    if (waitingTimerRef.current) {
+      clearTimeout(waitingTimerRef.current);
+      waitingTimerRef.current = null;
+    }
+  }
+}, [game?.status, game?.id]);
+```
 
-#### Aucun autre fichier modifie
+**d) Ajuster l'ordre des conditions de rendu (lignes 122-229)**
 
-Le hook `useLeaderboard` est deja importe et utilise dans `Public.tsx`. La table `settings` et le hook `useSettings` existent deja. Pas de changement backend.
+Deplacer le bloc "Game finished - show results" (lignes 191-229) AVANT le bloc "Waiting screen" (lignes 122-174). Ainsi, tant que `showWaitingScreen` est false et que `game?.status === 'finished'`, le score s'affiche. L'ecran d'attente ne prend le relais qu'apres les 2 minutes.
 
-### Details techniques
+Nouvelle logique de rendu :
+1. Loading
+2. Game finished + pas encore en waiting → afficher le score
+3. Waiting screen (apres 2 min ou pas de partie)
+4. No active game fallback
+5. Waiting to start
+6. Show result / Show question
 
-- Le layout utilise `h-screen flex flex-col` avec `justify-between` pour distribuer les 3 zones (titre, classement, logos) sur toute la hauteur sans scroll
-- Les tailles de police utilisent des classes Tailwind responsive (`text-3xl md:text-5xl lg:text-6xl`) pour s'adapter a la taille de l'ecran
-- Le `PartnerLogos` reste en position fixe en bas comme actuellement
-- Le classement est limite a `leaderboard.slice(0, 3)` pour n'afficher que le top 3
-- Si le classement est vide, on affiche un message par defaut
+### Concernant la derniere question non enregistree
+
+Le code de `submitAnswer` et le mecanisme d'auto-finish dans Admin.tsx semblent corrects. Le probleme de "derniere reponse non enregistree" est probablement lie au fait que l'ecran de score ne s'affichait pas du tout (il sautait directement a l'ecran d'attente), donnant l'impression que la reponse n'etait pas prise en compte. Une fois le score correctement affiche, cela devrait etre verifie.
+
+### Fichier modifie
+- `src/pages/Public.tsx` uniquement (environ 30 lignes modifiees)
 
