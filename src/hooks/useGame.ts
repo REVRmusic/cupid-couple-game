@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface Game {
@@ -38,7 +38,7 @@ export interface Question {
 export function useGame(gameId?: string) {
   const [game, setGame] = useState<Game | null>(null);
   const [gameQuestions, setGameQuestions] = useState<GameQuestion[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState<GameQuestion | null>(null);
+  
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -108,11 +108,11 @@ export function useGame(gameId?: string) {
     }
   }
 
-  useEffect(() => {
+  const currentQuestion = useMemo(() => {
     if (game && gameQuestions.length > 0) {
-      const current = gameQuestions[game.current_question_index];
-      setCurrentQuestion(current || null);
+      return gameQuestions[game.current_question_index] || null;
     }
+    return null;
   }, [game, gameQuestions]);
 
   return { game, gameQuestions, currentQuestion, loading, refetch: fetchGame };
