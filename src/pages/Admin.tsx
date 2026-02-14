@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useGame, useActiveGame, useQuestions, useLeaderboard } from "@/hooks/useGame";
+import { useGame, useActiveGame, useQuestions, useLeaderboard, GameQuestion } from "@/hooks/useGame";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSettings } from "@/hooks/useSettings";
 import { createGame, startGame, nextQuestion, resetGame, deleteGame, resetLeaderboard } from "@/lib/gameActions";
 import {
@@ -100,6 +102,8 @@ export default function Admin() {
   const [questionCategoryFilter, setQuestionCategoryFilter] = useState<string>("all");
   const [newPartnerName, setNewPartnerName] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [selectedGameQuestions, setSelectedGameQuestions] = useState<GameQuestion[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { activeGame, loading: loadingActive } = useActiveGame();
@@ -301,6 +305,24 @@ export default function Admin() {
 
   // Get unique categories from questions
   const categories = [...new Set(questions.map(q => q.category))].sort();
+
+  // Fetch game questions when a game is selected for detail modal
+  const selectedGame = leaderboard.find(g => g.id === selectedGameId);
+  useEffect(() => {
+    if (!selectedGameId) {
+      setSelectedGameQuestions([]);
+      return;
+    }
+    const fetchQuestions = async () => {
+      const { data } = await supabase
+        .from('game_questions')
+        .select('*, questions(text)')
+        .eq('game_id', selectedGameId)
+        .order('question_order');
+      if (data) setSelectedGameQuestions(data as GameQuestion[]);
+    };
+    fetchQuestions();
+  }, [selectedGameId]);
 
   const handleUpdateQuestion = async (id: string, text: string, isActive: boolean) => {
     const { error } = await updateQuestion(id, text, isActive);
@@ -754,7 +776,8 @@ export default function Admin() {
                     {leaderboard.map((g, index) => (
                       <div
                         key={g.id}
-                        className={`flex items-center p-4 rounded-xl ${
+                        onClick={() => setSelectedGameId(g.id)}
+                        className={`flex items-center p-4 rounded-xl cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all ${
                           index === 0
                             ? "bg-gold/20"
                             : index === 1
@@ -788,6 +811,47 @@ export default function Admin() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Game Detail Modal */}
+          <Dialog open={selectedGameId !== null} onOpenChange={(open) => { if (!open) setSelectedGameId(null); }}>
+            <DialogContent className="max-w-md w-[95vw] p-0">
+              <DialogHeader className="p-4 pb-2">
+                <DialogTitle className="text-base font-display">
+                  {selectedGame ? `${selectedGame.player1_name} & ${selectedGame.player2_name} — ${selectedGame.score}/${selectedGame.total_questions}` : ''}
+                </DialogTitle>
+              </DialogHeader>
+              <ScrollArea className="max-h-[70vh] px-4 pb-4">
+                <div className="space-y-2">
+                  {selectedGameQuestions.map((gq, i) => {
+                    const p1 = selectedGame?.player1_name ?? 'J1';
+                    const p2 = selectedGame?.player2_name ?? 'J2';
+                    const answerLabel = (a: string | null) => {
+                      if (a === 'player1') return p1;
+                      if (a === 'player2') return p2;
+                      return '—';
+                    };
+                    return (
+                      <div key={gq.id} className="rounded-lg border border-border p-3 space-y-1">
+                        <p className="text-sm font-medium">Q{i + 1}. {gq.questions?.text ?? '—'}</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                          <span>{p1}: <strong className="text-foreground">{answerLabel(gq.player1_answer)}</strong></span>
+                          <span>{p2}: <strong className="text-foreground">{answerLabel(gq.player2_answer)}</strong></span>
+                        </div>
+                        {gq.is_correct !== null && (
+                          <p className={`text-xs font-medium ${gq.is_correct ? 'text-green-600' : 'text-red-500'}`}>
+                            {gq.is_correct ? '✓ D\'accord' : '✗ Pas d\'accord'}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {selectedGameQuestions.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">Chargement...</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
 
           {/* Partners Tab */}
           <TabsContent value="partners" className="space-y-6">
