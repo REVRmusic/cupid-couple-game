@@ -108,27 +108,30 @@ export default function Admin() {
   const { logos: partnerLogos, addLogo, deleteLogo, toggleActive, reorderLogos } = usePartnerLogosAdmin();
   const { sendSignal, isConnected: isLightingConnected } = useLightingControl();
   
-  // Track previous is_correct value to detect changes
+  // Track previous is_correct value and question index to detect changes
   const prevIsCorrectRef = useRef<boolean | null | undefined>(undefined);
+  const prevQuestionIndexRef = useRef<number | undefined>(undefined);
   
   // Send lighting signal when result is revealed
   useEffect(() => {
+    // Detect question change and reset tracking
+    if (game && prevQuestionIndexRef.current !== undefined && prevQuestionIndexRef.current !== game.current_question_index) {
+      prevIsCorrectRef.current = undefined;
+      prevQuestionIndexRef.current = game.current_question_index;
+      return;
+    }
+    if (game) {
+      prevQuestionIndexRef.current = game.current_question_index;
+    }
+
     if (currentQuestion?.is_correct !== null && 
         currentQuestion?.is_correct !== undefined &&
         prevIsCorrectRef.current === null) {
-      // Result just changed from null to a value
-      const isLastQuestion = game && game.current_question_index + 1 >= game.total_questions;
-      if (isLastQuestion) {
-        // Last question: send combined signal (O or P) instead of V/R + F
-        const signal = currentQuestion.is_correct ? 'LAST_GREEN' : 'LAST_RED';
-        console.log(`🎭 Last question - sending ${signal} (combined signal)`);
-        sendSignal(signal, { score: game.score + (currentQuestion.is_correct ? 1 : 0), total: game.total_questions });
+      // Result just changed from null to a value - always send GREEN or RED
+      if (currentQuestion.is_correct === true) {
+        sendSignal('GREEN');
       } else {
-        if (currentQuestion.is_correct === true) {
-          sendSignal('GREEN');
-        } else {
-          sendSignal('RED');
-        }
+        sendSignal('RED');
       }
     }
     prevIsCorrectRef.current = currentQuestion?.is_correct;
@@ -145,6 +148,9 @@ export default function Admin() {
     ) {
       console.log('🎭 Last question answered - auto-finishing in 2.5 seconds');
       autoFinishTimerRef.current = setTimeout(() => {
+        // Send FINISH signal with score before transitioning
+        const finalScore = game.score + (currentQuestion.is_correct ? 1 : 0);
+        sendSignal('FINISH', { score: finalScore, total: game.total_questions });
         handleNextQuestion();
       }, 2500);
       return () => {
