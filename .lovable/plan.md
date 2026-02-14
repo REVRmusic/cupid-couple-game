@@ -1,84 +1,59 @@
 
 
-## Fix robuste : empecher la fin prematuree de la derniere question
+## Fix : Les signaux lumineux ne se declenchent pas a chaque question
 
-### Diagnostic approfondi
+### Cause racine
 
-Les correctifs precedents (garde `question_order` et `useMemo`) sont theoriquement corrects mais ne suffisent pas. Le probleme persiste probablement pour l'une de ces raisons :
+Dans l'effet de signal lumineux (lignes 128-153 de Admin.tsx), quand la question change :
 
-1. **Desynchronisation entre `game` et `gameQuestions`** : le state `game` est mis a jour instantanement via realtime (`setGame(payload.new)`), mais `gameQuestions` est mis a jour via un `fetchGameQuestions()` asynchrone. Pendant la fenetre ou le fetch n'a pas encore retourne, `gameQuestions` peut contenir des donnees intermediaires.
+1. `prevIsCorrectRef.current` est mis a `undefined` et l'effet fait un `return` premature (lignes 131-133)
+2. Au rendu suivant, `prevIsCorrectRef` est `undefined`
+3. Si le realtime a deja mis a jour `is_correct` (les reponses et le resultat arrivent dans le meme batch), la condition `prevIsCorrectRef.current === null` (ligne 144) echoue car la valeur est `undefined`, pas `null`
+4. L'effet met alors `prevIsCorrectRef` a `true` ou `false` (ligne 152) -- le signal est definitivement perdu
 
-2. **Effet auto-finish trop permissif** : il ne verifie que `is_correct !== null`, mais ne verifie pas que les deux joueurs ont reellement repondu (`player1_answer` et `player2_answer`).
+En resume : le signal est rate quand les donnees arrivent trop vite apres un changement de question, car `undefined !== null`.
 
-### Solution en 3 couches de protection
+### Solution
 
-**Couche 1 : Verifier les reponses des joueurs (pas seulement `is_correct`)**
+Simplifier la logique de detection en supprimant le `return` premature et en utilisant `undefined` comme valeur "pas encore pret" correctement. Concretement :
 
-Ajouter dans la condition auto-finish :
-```text
-currentQuestion?.player1_answer !== null &&
-currentQuestion?.player2_answer !== null
-```
-
-Meme si `is_correct` est defini par erreur, cette condition garantit que les deux joueurs ont bien clique.
-
-**Couche 2 : Verification en base de donnees avant de finir**
-
-Avant de declencher le `nextQuestion` (qui termine la partie), faire une requete a la base de donnees pour verifier que la derniere question a bien les deux reponses :
+**Modifier l'effet de signal (lignes 128-153) :**
 
 ```text
-const { data: lastQ } = await supabase
-  .from('game_questions')
-  .select('player1_answer, player2_answer, is_correct')
-  .eq('id', currentQuestion.id)
-  .single();
+useEffect(() => {
+  // Detect question change and reset tracking
+  if (game && prevQuestionIndexRef.current !== undefined && 
+      prevQuestionIndexRef.current !== game.current_question_index) {
+    prevIsCorrectRef.current = null;  // null au lieu de undefined
+    prevQuestionIndexRef.current = game.current_question_index;
+    // PAS de return - on continue pour traiter le cas ou is_correct est deja defini
+  }
+  if (game) {
+    prevQuestionIndexRef.current = game.current_question_index;
+  }
 
-if (!lastQ?.player1_answer || !lastQ?.player2_answer) {
-  // Les joueurs n'ont pas repondu - on ne finit PAS
-  autoFinishScheduledRef.current = false;
-  return;
-}
+  if (currentQuestion?.question_order === game?.current_question_index &&
+      currentQuestion?.player1_answer !== null &&
+      currentQuestion?.player2_answer !== null &&
+      currentQuestion?.is_correct !== null && 
+      currentQuestion?.is_correct !== undefined &&
+      (prevIsCorrectRef.current === null || prevIsCorrectRef.current === undefined)) {
+    if (currentQuestion.is_correct === true) {
+      sendSignal('GREEN');
+    } else {
+      sendSignal('RED');
+    }
+  }
+  prevIsCorrectRef.current = currentQuestion?.is_correct ?? null;
+}, [currentQuestion?.is_correct, currentQuestion?.player1_answer, currentQuestion?.player2_answer, sendSignal, game]);
 ```
 
-Cela ajoute une verification directe en base, independante de l'etat React.
-
-**Couche 3 : Logs de debug detailles**
-
-Ajouter des console.log pour tracer exactement quand et pourquoi l'auto-finish se declenche :
-
-```text
-console.log('Auto-finish check:', {
-  status: game?.status,
-  index: game?.current_question_index,
-  total: game?.total_questions,
-  questionOrder: currentQuestion?.question_order,
-  isCorrect: currentQuestion?.is_correct,
-  p1Answer: currentQuestion?.player1_answer,
-  p2Answer: currentQuestion?.player2_answer,
-  scheduled: autoFinishScheduledRef.current
-});
-```
-
-### Modifications dans `src/pages/Admin.tsx`
-
-**1. Condition auto-finish renforcee (lignes 157-165)**
-
-Ajouter 2 conditions supplementaires dans le `if` :
-- `currentQuestion?.player1_answer !== null`
-- `currentQuestion?.player2_answer !== null`
-
-**2. Verification DB dans le setTimeout (lignes 174-177)**
-
-Avant d'appeler `nextQuestion`, faire une requete Supabase pour confirmer que la question a bien les deux reponses. Si la verification echoue, annuler le finish et remettre `autoFinishScheduledRef.current = false`.
-
-**3. Logs de debug (avant le `if`)**
-
-Ajouter un `console.log` avec tous les parametres de la condition pour pouvoir diagnostiquer si le probleme revient.
-
-**4. Meme renforcement pour le signal lumineux (lignes 139-148)**
-
-Ajouter la verification `player1_answer && player2_answer` dans la condition d'envoi du signal vert/rouge.
+Les changements :
+- `prevIsCorrectRef.current = null` au lieu de `undefined` lors du reset
+- Suppression du `return` premature pour ne pas rater le signal si les donnees arrivent dans le meme rendu
+- La condition accepte `prevIsCorrectRef.current === null || prevIsCorrectRef.current === undefined` pour couvrir les deux cas (reset et premier chargement)
+- `prevIsCorrectRef.current` est toujours mis a jour a la fin (ligne du bas) avec `?? null` pour eviter les valeurs `undefined`
 
 ### Fichier modifie
-- `src/pages/Admin.tsx` uniquement (environ 25 lignes ajoutees/modifiees)
+- `src/pages/Admin.tsx` uniquement (environ 5 lignes modifiees dans l'effet de signal lumineux)
 
