@@ -136,7 +136,8 @@ export default function Admin() {
       prevQuestionIndexRef.current = game.current_question_index;
     }
 
-    if (currentQuestion?.is_correct !== null && 
+    if (currentQuestion?.question_order === game?.current_question_index &&
+        currentQuestion?.is_correct !== null && 
         currentQuestion?.is_correct !== undefined &&
         prevIsCorrectRef.current === null) {
       // Result just changed from null to a value - always send GREEN or RED
@@ -157,6 +158,7 @@ export default function Admin() {
     if (
       game?.status === 'playing' &&
       game.current_question_index + 1 >= game.total_questions &&
+      currentQuestion?.question_order === game.current_question_index &&
       currentQuestion?.is_correct !== null &&
       currentQuestion?.is_correct !== undefined &&
       !autoFinishScheduledRef.current
