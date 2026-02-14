@@ -1,63 +1,70 @@
 
 
-## Fix : La sequence de fin se declenche avant que les joueurs repondent a la derniere question
+## Fix : Eliminer la desynchronisation a la source dans useGame.ts
+
+### Pourquoi le fix precedent ne suffit pas
+
+Le garde `currentQuestion?.question_order === game.current_question_index` dans Admin.tsx est correct en theorie, mais le probleme fondamental reste : `currentQuestion` est calcule dans un `useEffect` (ligne 111-115 de `useGame.ts`), ce qui signifie qu'il est mis a jour **un rendu en retard** par rapport a `game`. Cela cree une fenetre de desynchronisation a chaque changement de question.
+
+La vraie solution est d'eliminer ce decalage en calculant `currentQuestion` de maniere **synchrone** avec `useMemo` au lieu d'un `useEffect` + `useState`.
 
 ### Cause racine
 
-C'est un probleme de synchronisation entre deux states React dans le hook `useGame.ts` :
+Dans `src/hooks/useGame.ts`, lignes 111-116 :
 
-1. Quand l'admin clique "Question suivante" sur l'avant-derniere question, `game.current_question_index` passe a l'index de la derniere question via la mise a jour temps reel
-2. Mais `currentQuestion` est derive dans un `useEffect` separe qui ne s'execute qu'au rendu SUIVANT
-3. Pendant un rendu intermediaire, `game.current_question_index` pointe deja sur la derniere question, mais `currentQuestion` contient encore l'ANCIENNE question (l'avant-derniere) avec `is_correct` defini
-4. L'effet auto-finish voit : "derniere question + is_correct non null" → il declenche la fin immediatement
+```text
+useEffect(() => {
+  if (game && gameQuestions.length > 0) {
+    const current = gameQuestions[game.current_question_index];
+    setCurrentQuestion(current || null);
+  }
+}, [game, gameQuestions]);
+```
 
-En resume : le jeu se termine parce que l'auto-finish confond le resultat de l'avant-derniere question avec celui de la derniere question, le temps d'un rendu.
+`useEffect` s'execute APRES le rendu. Donc quand `game.current_question_index` passe a 9 (derniere question), il y a un rendu intermediaire ou `game` est a jour mais `currentQuestion` pointe encore sur l'ancienne question (index 8) avec `is_correct` deja defini. Meme avec le garde, les effets dans Admin.tsx peuvent s'executer dans un ordre imprevisible selon le batching de React.
 
 ### Solution
 
-Ajouter une verification dans l'effet auto-finish (`src/pages/Admin.tsx`, lignes 156-183) pour s'assurer que `currentQuestion` correspond bien a la question actuelle avant de declencher la fin. On verifie que `currentQuestion.question_order` est egal a `game.current_question_index`.
+Remplacer le `useEffect` + `useState` pour `currentQuestion` par un `useMemo`. Le `useMemo` est calcule **pendant** le rendu, pas apres. Il n'y a donc jamais de decalage entre `game.current_question_index` et `currentQuestion`.
 
-### Modification dans `src/pages/Admin.tsx`
+### Modification dans `src/hooks/useGame.ts`
 
-Ajouter une condition supplementaire dans le `useEffect` d'auto-finish (ligne 157-162) :
-
+**Avant :**
 ```text
-Avant :
-  if (
-    game?.status === 'playing' &&
-    game.current_question_index + 1 >= game.total_questions &&
-    currentQuestion?.is_correct !== null &&
-    currentQuestion?.is_correct !== undefined &&
-    !autoFinishScheduledRef.current
-  )
+const [currentQuestion, setCurrentQuestion] = useState<GameQuestion | null>(null);
 
-Apres :
-  if (
-    game?.status === 'playing' &&
-    game.current_question_index + 1 >= game.total_questions &&
-    currentQuestion?.question_order === game.current_question_index &&
-    currentQuestion?.is_correct !== null &&
-    currentQuestion?.is_correct !== undefined &&
-    !autoFinishScheduledRef.current
-  )
+// ... plus loin ...
+
+useEffect(() => {
+  if (game && gameQuestions.length > 0) {
+    const current = gameQuestions[game.current_question_index];
+    setCurrentQuestion(current || null);
+  }
+}, [game, gameQuestions]);
 ```
 
-La ligne ajoutee (`currentQuestion?.question_order === game.current_question_index`) garantit que `currentQuestion` est bien la question correspondant a l'index courant du jeu, et pas une question obsolete d'un rendu precedent.
-
-### Meme verification pour le signal lumineux
-
-Appliquer la meme garde dans l'effet d'envoi de signal lumineux (lignes 128-150) pour eviter d'envoyer un signal GREEN/RED au mauvais moment :
-
+**Apres :**
 ```text
-Ajouter avant la condition ligne 139 :
-  currentQuestion?.question_order === game?.current_question_index &&
+const currentQuestion = useMemo(() => {
+  if (game && gameQuestions.length > 0) {
+    return gameQuestions[game.current_question_index] || null;
+  }
+  return null;
+}, [game, gameQuestions]);
 ```
 
-### Fichier modifie
-- `src/pages/Admin.tsx` uniquement (2 lignes ajoutees)
+- Supprimer le `useState` pour `currentQuestion`
+- Supprimer le `useEffect` qui le mettait a jour
+- Ajouter `useMemo` a l'import React
+- `currentQuestion` est maintenant toujours synchronise avec `game.current_question_index` dans le meme rendu
 
 ### Impact
-- Les joueurs auront le temps de repondre a la derniere question
-- La sequence de fin ne se declenchera qu'apres que les deux joueurs auront repondu
-- Le score de la derniere question sera bien comptabilise
+
+- `currentQuestion` est toujours en phase avec `game.current_question_index` - plus jamais de rendu intermediaire desynchronise
+- L'auto-finish dans Admin.tsx ne peut plus se declencher avec des donnees obsoletes
+- Le garde `question_order === current_question_index` reste en place comme securite supplementaire
+- Aucun changement d'API : le hook retourne toujours `{ game, gameQuestions, currentQuestion, loading, refetch }`
+
+### Fichier modifie
+- `src/hooks/useGame.ts` uniquement (3 lignes modifiees)
 
