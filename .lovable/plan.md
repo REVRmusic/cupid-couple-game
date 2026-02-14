@@ -1,70 +1,84 @@
 
 
-## Fix : Eliminer la desynchronisation a la source dans useGame.ts
+## Fix robuste : empecher la fin prematuree de la derniere question
 
-### Pourquoi le fix precedent ne suffit pas
+### Diagnostic approfondi
 
-Le garde `currentQuestion?.question_order === game.current_question_index` dans Admin.tsx est correct en theorie, mais le probleme fondamental reste : `currentQuestion` est calcule dans un `useEffect` (ligne 111-115 de `useGame.ts`), ce qui signifie qu'il est mis a jour **un rendu en retard** par rapport a `game`. Cela cree une fenetre de desynchronisation a chaque changement de question.
+Les correctifs precedents (garde `question_order` et `useMemo`) sont theoriquement corrects mais ne suffisent pas. Le probleme persiste probablement pour l'une de ces raisons :
 
-La vraie solution est d'eliminer ce decalage en calculant `currentQuestion` de maniere **synchrone** avec `useMemo` au lieu d'un `useEffect` + `useState`.
+1. **Desynchronisation entre `game` et `gameQuestions`** : le state `game` est mis a jour instantanement via realtime (`setGame(payload.new)`), mais `gameQuestions` est mis a jour via un `fetchGameQuestions()` asynchrone. Pendant la fenetre ou le fetch n'a pas encore retourne, `gameQuestions` peut contenir des donnees intermediaires.
 
-### Cause racine
+2. **Effet auto-finish trop permissif** : il ne verifie que `is_correct !== null`, mais ne verifie pas que les deux joueurs ont reellement repondu (`player1_answer` et `player2_answer`).
 
-Dans `src/hooks/useGame.ts`, lignes 111-116 :
+### Solution en 3 couches de protection
 
+**Couche 1 : Verifier les reponses des joueurs (pas seulement `is_correct`)**
+
+Ajouter dans la condition auto-finish :
 ```text
-useEffect(() => {
-  if (game && gameQuestions.length > 0) {
-    const current = gameQuestions[game.current_question_index];
-    setCurrentQuestion(current || null);
-  }
-}, [game, gameQuestions]);
+currentQuestion?.player1_answer !== null &&
+currentQuestion?.player2_answer !== null
 ```
 
-`useEffect` s'execute APRES le rendu. Donc quand `game.current_question_index` passe a 9 (derniere question), il y a un rendu intermediaire ou `game` est a jour mais `currentQuestion` pointe encore sur l'ancienne question (index 8) avec `is_correct` deja defini. Meme avec le garde, les effets dans Admin.tsx peuvent s'executer dans un ordre imprevisible selon le batching de React.
+Meme si `is_correct` est defini par erreur, cette condition garantit que les deux joueurs ont bien clique.
 
-### Solution
+**Couche 2 : Verification en base de donnees avant de finir**
 
-Remplacer le `useEffect` + `useState` pour `currentQuestion` par un `useMemo`. Le `useMemo` est calcule **pendant** le rendu, pas apres. Il n'y a donc jamais de decalage entre `game.current_question_index` et `currentQuestion`.
+Avant de declencher le `nextQuestion` (qui termine la partie), faire une requete a la base de donnees pour verifier que la derniere question a bien les deux reponses :
 
-### Modification dans `src/hooks/useGame.ts`
-
-**Avant :**
 ```text
-const [currentQuestion, setCurrentQuestion] = useState<GameQuestion | null>(null);
+const { data: lastQ } = await supabase
+  .from('game_questions')
+  .select('player1_answer, player2_answer, is_correct')
+  .eq('id', currentQuestion.id)
+  .single();
 
-// ... plus loin ...
-
-useEffect(() => {
-  if (game && gameQuestions.length > 0) {
-    const current = gameQuestions[game.current_question_index];
-    setCurrentQuestion(current || null);
-  }
-}, [game, gameQuestions]);
+if (!lastQ?.player1_answer || !lastQ?.player2_answer) {
+  // Les joueurs n'ont pas repondu - on ne finit PAS
+  autoFinishScheduledRef.current = false;
+  return;
+}
 ```
 
-**Apres :**
+Cela ajoute une verification directe en base, independante de l'etat React.
+
+**Couche 3 : Logs de debug detailles**
+
+Ajouter des console.log pour tracer exactement quand et pourquoi l'auto-finish se declenche :
+
 ```text
-const currentQuestion = useMemo(() => {
-  if (game && gameQuestions.length > 0) {
-    return gameQuestions[game.current_question_index] || null;
-  }
-  return null;
-}, [game, gameQuestions]);
+console.log('Auto-finish check:', {
+  status: game?.status,
+  index: game?.current_question_index,
+  total: game?.total_questions,
+  questionOrder: currentQuestion?.question_order,
+  isCorrect: currentQuestion?.is_correct,
+  p1Answer: currentQuestion?.player1_answer,
+  p2Answer: currentQuestion?.player2_answer,
+  scheduled: autoFinishScheduledRef.current
+});
 ```
 
-- Supprimer le `useState` pour `currentQuestion`
-- Supprimer le `useEffect` qui le mettait a jour
-- Ajouter `useMemo` a l'import React
-- `currentQuestion` est maintenant toujours synchronise avec `game.current_question_index` dans le meme rendu
+### Modifications dans `src/pages/Admin.tsx`
 
-### Impact
+**1. Condition auto-finish renforcee (lignes 157-165)**
 
-- `currentQuestion` est toujours en phase avec `game.current_question_index` - plus jamais de rendu intermediaire desynchronise
-- L'auto-finish dans Admin.tsx ne peut plus se declencher avec des donnees obsoletes
-- Le garde `question_order === current_question_index` reste en place comme securite supplementaire
-- Aucun changement d'API : le hook retourne toujours `{ game, gameQuestions, currentQuestion, loading, refetch }`
+Ajouter 2 conditions supplementaires dans le `if` :
+- `currentQuestion?.player1_answer !== null`
+- `currentQuestion?.player2_answer !== null`
+
+**2. Verification DB dans le setTimeout (lignes 174-177)**
+
+Avant d'appeler `nextQuestion`, faire une requete Supabase pour confirmer que la question a bien les deux reponses. Si la verification echoue, annuler le finish et remettre `autoFinishScheduledRef.current = false`.
+
+**3. Logs de debug (avant le `if`)**
+
+Ajouter un `console.log` avec tous les parametres de la condition pour pouvoir diagnostiquer si le probleme revient.
+
+**4. Meme renforcement pour le signal lumineux (lignes 139-148)**
+
+Ajouter la verification `player1_answer && player2_answer` dans la condition d'envoi du signal vert/rouge.
 
 ### Fichier modifie
-- `src/hooks/useGame.ts` uniquement (3 lignes modifiees)
+- `src/pages/Admin.tsx` uniquement (environ 25 lignes ajoutees/modifiees)
 
