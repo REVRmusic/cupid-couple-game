@@ -97,31 +97,35 @@ wss.on('connection', (ws) => {
         console.log('Signal DERNIERE QUESTION CORRECTE - Appui touche O');
         await sendKey('o');
 
-        // Jouer la musique selon le score
+        // Attendre 500ms pour que Daslight ait le temps de recevoir la touche
         if (data.score !== undefined && data.total !== undefined) {
-          const isPerfect = data.score === data.total;
-          if (isPerfect) {
-            console.log(`SCORE PARFAIT ${data.score}/${data.total} ! Musique speciale !`);
-            playMusic('music/perfect.mp3');
-          } else {
-            console.log(`Score ${data.score}/${data.total} - Musique normale`);
-            playMusic('music/normal.mp3');
-          }
+          setTimeout(() => {
+            const isPerfect = data.score === data.total;
+            if (isPerfect) {
+              console.log(`SCORE PARFAIT ${data.score}/${data.total} ! Musique speciale !`);
+              playMusic('music/perfect.mp3');
+            } else {
+              console.log(`Score ${data.score}/${data.total} - Musique normale`);
+              playMusic('music/normal.mp3');
+            }
+          }, 500);
         }
       } else if (data.type === 'LAST_RED') {
         console.log('Signal DERNIERE QUESTION INCORRECTE - Appui touche P');
         await sendKey('p');
 
-        // Jouer la musique selon le score
+        // Attendre 500ms pour que Daslight ait le temps de recevoir la touche
         if (data.score !== undefined && data.total !== undefined) {
-          const isPerfect = data.score === data.total;
-          if (isPerfect) {
-            console.log(`SCORE PARFAIT ${data.score}/${data.total} ! Musique speciale !`);
-            playMusic('music/perfect.mp3');
-          } else {
-            console.log(`Score ${data.score}/${data.total} - Musique normale`);
-            playMusic('music/normal.mp3');
-          }
+          setTimeout(() => {
+            const isPerfect = data.score === data.total;
+            if (isPerfect) {
+              console.log(`SCORE PARFAIT ${data.score}/${data.total} ! Musique speciale !`);
+              playMusic('music/perfect.mp3');
+            } else {
+              console.log(`Score ${data.score}/${data.total} - Musique normale`);
+              playMusic('music/normal.mp3');
+            }
+          }, 500);
         }
       }
     } catch (e) {
