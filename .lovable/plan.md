@@ -1,81 +1,75 @@
 
 
-## Fix : Le score de fin de partie ne s'affiche plus sur l'ecran public
+## Modal de detail des reponses par partie dans l'onglet Classement
 
-### Cause racine
+### Objectif
+Permettre a l'admin de cliquer sur une partie dans le classement pour ouvrir une modal affichant toutes les questions et reponses des deux joueurs, optimisee pour mobile.
 
-Quand une partie se termine (status = 'finished'), le hook `useActiveGame()` cherche les parties avec status `['waiting', 'playing']`. Il ne trouve plus rien, donc `activeGame` devient `null`. L'effet a la ligne 92-94 detecte `!activeGame` et met immediatement `showWaitingScreen = true`, ce qui affiche l'ecran d'attente et saute completement l'affichage du score.
+### Fonctionnement
+- Cliquer sur une ligne du classement ouvre une modal (Dialog)
+- La modal affiche le nom du couple, le score, et la liste des questions avec :
+  - Le texte de la question
+  - La reponse de chaque joueur (Joueur 1 ou Joueur 2)
+  - Si les reponses concordent (correct) ou non
+- Un bouton X ou "Fermer" permet de fermer la modal
+- Layout optimise pour telephone (pas de tableau, cartes empilees)
 
-Le timer de 2 minutes n'a jamais l'occasion de se declencher.
-
-### Solution
-
-Modifier la logique dans `src/pages/Public.tsx` pour que l'ecran d'attente ne s'active pas quand un jeu termine vient de se terminer et que le timer de 2 minutes n'est pas encore ecoule.
-
-### Modifications dans `src/pages/Public.tsx`
-
-**a) Garder une reference au dernier jeu termine**
-
-Ajouter un state `finishedGameId` qui memorise l'ID du jeu qui vient de finir. Cela permet de savoir qu'on est dans la phase "affichage du score pendant 2 min" meme si `activeGame` est devenu `null`.
-
-**b) Modifier l'effet "no active game" (lignes 92-99)**
-
-Ne plus mettre `showWaitingScreen = true` immediatement quand `activeGame` est null. A la place, verifier si on est dans la phase d'affichage du score (timer de 2 min en cours). Si oui, ne rien faire - le timer s'en chargera.
+### Layout de la modal
 
 ```text
-useEffect(() => {
-  if (!loadingActive && !activeGame && !waitingTimerRef.current && game?.status !== 'finished') {
-    setShowWaitingScreen(true);
-  }
-  if (activeGame && activeGame.status !== 'finished') {
-    setShowWaitingScreen(false);
-  }
-}, [activeGame, loadingActive, game?.status]);
++-------------------------------+
+|  Alice & Bob - 8/10      [X] |
++-------------------------------+
+| Q1. Qui cuisine le mieux ?    |
+|   Alice: Alice  |  Bob: Alice |
+|   [vert] Correct              |
++-------------------------------+
+| Q2. Qui est le plus jaloux ?  |
+|   Alice: Bob    |  Bob: Alice |
+|   [rouge] Pas d'accord        |
++-------------------------------+
+| ...                           |
++-------------------------------+
 ```
 
-**c) Modifier le timer de 2 minutes (lignes 68-89)**
+### Modifications dans `src/pages/Admin.tsx`
 
-Supprimer le cleanup qui annule le timer a chaque re-render (meme probleme que le fix precedent sur Admin). Utiliser un ref de garde pour ne creer le timer qu'une seule fois par partie terminee.
+**1. Nouveau state pour la modal**
 
-```text
-const finishTimerScheduledRef = useRef<string | null>(null);
+Ajouter un state `selectedGameId: string | null` pour controler quelle partie est selectionnee.
 
-useEffect(() => {
-  if (game?.status === 'finished' && finishTimerScheduledRef.current !== game.id) {
-    finishTimerScheduledRef.current = game.id;
-    waitingTimerRef.current = setTimeout(() => {
-      setShowWaitingScreen(true);
-      waitingTimerRef.current = null;
-    }, 2 * 60 * 1000);
-  }
+**2. Fetch des questions de la partie selectionnee**
 
-  if (game?.status === 'playing' || game?.status === 'waiting') {
-    finishTimerScheduledRef.current = null;
-    setShowWaitingScreen(false);
-    if (waitingTimerRef.current) {
-      clearTimeout(waitingTimerRef.current);
-      waitingTimerRef.current = null;
-    }
-  }
-}, [game?.status, game?.id]);
-```
+Quand `selectedGameId` change, charger les `game_questions` avec la jointure `questions(text)` depuis Supabase. Stocker dans un state local `selectedGameQuestions`.
 
-**d) Ajuster l'ordre des conditions de rendu (lignes 122-229)**
+**3. Rendre les lignes du classement cliquables**
 
-Deplacer le bloc "Game finished - show results" (lignes 191-229) AVANT le bloc "Waiting screen" (lignes 122-174). Ainsi, tant que `showWaitingScreen` est false et que `game?.status === 'finished'`, le score s'affiche. L'ecran d'attente ne prend le relais qu'apres les 2 minutes.
+Ajouter un `onClick` + `cursor-pointer` sur chaque ligne du classement (lignes 755-784) pour ouvrir la modal en settant `selectedGameId`.
 
-Nouvelle logique de rendu :
-1. Loading
-2. Game finished + pas encore en waiting → afficher le score
-3. Waiting screen (apres 2 min ou pas de partie)
-4. No active game fallback
-5. Waiting to start
-6. Show result / Show question
+**4. Ajouter le composant Dialog**
 
-### Concernant la derniere question non enregistree
+Apres le bloc du classement, ajouter un `<Dialog>` qui :
+- S'ouvre quand `selectedGameId !== null`
+- Affiche le titre avec les noms des joueurs et le score
+- Liste chaque question dans une carte compacte :
+  - Texte de la question
+  - Reponse joueur 1 et joueur 2 (affichees cote a cote)
+  - Indicateur vert/rouge selon `is_correct`
+- Le contenu scrolle via `ScrollArea` si necessaire
+- Se ferme en cliquant X ou a l'exterieur
 
-Le code de `submitAnswer` et le mecanisme d'auto-finish dans Admin.tsx semblent corrects. Le probleme de "derniere reponse non enregistree" est probablement lie au fait que l'ecran de score ne s'affichait pas du tout (il sautait directement a l'ecran d'attente), donnant l'impression que la reponse n'etait pas prise en compte. Une fois le score correctement affiche, cela devrait etre verifie.
+**5. Optimisation mobile**
+
+- La modal prend `max-w-md w-[95vw]` pour bien s'adapter au telephone
+- Les reponses sont affichees en grille `grid-cols-2` compacte
+- Les tailles de texte sont reduites (`text-sm`, `text-xs`)
+- Le `ScrollArea` limite la hauteur a `max-h-[70vh]`
+
+### Imports a ajouter
+- `Dialog, DialogContent, DialogHeader, DialogTitle` depuis `@/components/ui/dialog`
+- `ScrollArea` depuis `@/components/ui/scroll-area`
+- `Eye` depuis `lucide-react` (icone optionnelle)
 
 ### Fichier modifie
-- `src/pages/Public.tsx` uniquement (environ 30 lignes modifiees)
+- `src/pages/Admin.tsx` uniquement (environ 80 lignes ajoutees)
 
