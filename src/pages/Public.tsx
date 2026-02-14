@@ -121,26 +121,52 @@ export default function Public() {
 
   // Waiting screen (after 2 min or no active game)
   if (showWaitingScreen && (!activeGame || game?.status === 'finished')) {
+    const medals = ['🥇', '🥈', '🥉'];
+    const top3 = leaderboard.slice(0, 3);
+
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-blush p-8">
+      <div className="h-screen flex flex-col bg-blush overflow-hidden">
         <HeartBackground />
-        <div className="relative z-10 text-center">
-          <Logo size="lg" />
-          <div className="mt-12">
-            <Heart className="w-24 h-24 text-primary mx-auto animate-heart-beat mb-8" />
-            {nextSessionTime ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="flex items-center gap-3 text-4xl font-display text-foreground">
-                  <Clock className="w-10 h-10 text-primary" />
-                  <span>Prochaine séance à {nextSessionTime}</span>
-                </div>
+        <div className="relative z-10 flex flex-col justify-between h-full py-6 md:py-10 px-4">
+          {/* Top: Title + Next session */}
+          <div className="text-center">
+            <Logo size="lg" />
+            <p className="mt-3 text-2xl md:text-4xl font-display text-foreground">
+              {nextSessionTime
+                ? `Prochaine séance à ${nextSessionTime}`
+                : 'À bientôt pour la prochaine partie !'}
+            </p>
+          </div>
+
+          {/* Center: Top 3 Leaderboard */}
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <h2 className="text-2xl md:text-3xl font-display text-muted-foreground mb-6">
+              🏆 Top 3 des meilleurs couples
+            </h2>
+            {top3.length > 0 ? (
+              <div className="w-full max-w-2xl space-y-4">
+                {top3.map((entry, i) => (
+                  <div
+                    key={entry.id}
+                    className="romantic-card flex items-center justify-between px-6 md:px-10 py-4 md:py-6"
+                  >
+                    <span className="text-2xl md:text-4xl font-display text-foreground">
+                      {medals[i]} {entry.player1_name} & {entry.player2_name}
+                    </span>
+                    <span className="text-2xl md:text-4xl font-bold text-primary">
+                      {entry.score}/{entry.total_questions}
+                    </span>
+                  </div>
+                ))}
               </div>
             ) : (
-              <p className="text-3xl font-display text-foreground">
-                À bientôt pour la prochaine partie !
+              <p className="text-xl md:text-2xl font-body text-muted-foreground">
+                Aucun score pour le moment
               </p>
             )}
           </div>
+
+          {/* Bottom: Partner logos */}
           <PartnerLogos />
         </div>
       </div>
