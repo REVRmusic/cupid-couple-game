@@ -126,11 +126,10 @@ export default function Admin() {
   
   // Send lighting signal when result is revealed
   useEffect(() => {
-    // Detect question change and reset tracking
+    // Detect question change and reset tracking (no early return!)
     if (game && prevQuestionIndexRef.current !== undefined && prevQuestionIndexRef.current !== game.current_question_index) {
-      prevIsCorrectRef.current = undefined;
+      prevIsCorrectRef.current = null;
       prevQuestionIndexRef.current = game.current_question_index;
-      return;
     }
     if (game) {
       prevQuestionIndexRef.current = game.current_question_index;
@@ -141,16 +140,15 @@ export default function Admin() {
         currentQuestion?.player2_answer !== null &&
         currentQuestion?.is_correct !== null && 
         currentQuestion?.is_correct !== undefined &&
-        prevIsCorrectRef.current === null) {
-      // Result just changed from null to a value - always send GREEN or RED
+        (prevIsCorrectRef.current === null || prevIsCorrectRef.current === undefined)) {
       if (currentQuestion.is_correct === true) {
         sendSignal('GREEN');
       } else {
         sendSignal('RED');
       }
     }
-    prevIsCorrectRef.current = currentQuestion?.is_correct;
-  }, [currentQuestion?.is_correct, sendSignal, game]);
+    prevIsCorrectRef.current = currentQuestion?.is_correct ?? null;
+  }, [currentQuestion?.is_correct, currentQuestion?.player1_answer, currentQuestion?.player2_answer, sendSignal, game]);
 
   // Auto-finish game 5 seconds after last question result is revealed
   const autoFinishTimerRef = useRef<NodeJS.Timeout | null>(null);
