@@ -1,66 +1,59 @@
 
 
-## Ecran d'attente entre les quiz + heure de la prochaine seance
+## Redesign de l'ecran d'attente entre les seances
 
-### Fonctionnement
+### Objectif
+Modifier uniquement l'ecran d'attente (waiting screen) dans `Public.tsx` pour :
+- Monter le titre "Jeu des Couples" en haut
+- Retirer le coeur central
+- Afficher "Prochaine seance a [heure]" juste sous le titre
+- Afficher le Top 3 du classement au centre
+- Logos partenaires en bas
+- Tout visible sans scroll, responsive
 
-1. **Ecran public** : Apres la fin d'une partie, les resultats s'affichent pendant 2 minutes, puis un ecran d'attente apparait avec le logo, les logos partenaires, et l'heure de la prochaine seance (ex: "Prochaine seance a 15h30").
-2. **Espace admin** : Un nouveau champ dans l'onglet "Partie" permet de saisir l'heure de la prochaine seance. Cette heure est stockee en base de donnees dans une table `settings`.
+### Layout propose
+
+```text
++----------------------------------+
+|                                  |
+|      [coeur] Jeu des Couples     |
+|    Prochaine seance a 11h45      |
+|                                  |
+|         --- Top 3 ---            |
+|  1. Alice & Bob    8/10          |
+|  2. Clara & David  7/10          |
+|  3. Eve & Frank    6/10          |
+|                                  |
+|       [logos partenaires]        |
++----------------------------------+
+```
 
 ### Modifications
 
-#### 1. Base de donnees : nouvelle table `settings`
+#### `src/pages/Public.tsx` (lignes 122-147)
 
-Creation d'une table `settings` avec une seule ligne contenant `next_session_time` (texte, ex: "15h30"). Pas de RLS car les donnees sont publiques (affichees sur le projecteur).
+Remplacer le bloc de l'ecran d'attente :
 
-```text
-CREATE TABLE public.settings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  next_session_time text DEFAULT '',
-  updated_at timestamptz DEFAULT now()
-);
+- **Supprimer** le `<Heart>` central (ligne 130)
+- **Deplacer** le Logo tout en haut avec un margin top reduit
+- **Ajouter** le texte "Prochaine seance a..." directement sous le logo (sans icone Clock, juste du texte)
+- **Ajouter** le Top 3 du classement en utilisant le hook `useLeaderboard` (deja importe)
+- **Utiliser** `h-screen` avec `flex flex-col justify-between` pour repartir verticalement : titre+heure en haut, classement au centre, logos en bas
+- Tailles de texte adaptees avec des classes responsive (`text-2xl md:text-4xl`, etc.)
 
-INSERT INTO public.settings (next_session_time) VALUES ('');
+Le top 3 sera affiche sous forme de cartes ou lignes stylisees :
+- Medaille emoji (or/argent/bronze) + noms du couple + score (ex: "8/10")
+- Tailles de police suffisamment grandes pour etre lisibles sur projecteur
 
-ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Anyone can read settings" ON public.settings FOR SELECT USING (true);
-CREATE POLICY "Anyone can update settings" ON public.settings FOR UPDATE USING (true);
+#### Aucun autre fichier modifie
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.settings;
-```
-
-#### 2. `src/hooks/useGame.ts` : nouveau hook `useSettings`
-
-Ajouter un hook `useSettings()` qui :
-- Lit la ligne unique de `settings` via Supabase
-- Ecoute les changements en realtime
-- Expose `nextSessionTime` et `updateNextSessionTime(time: string)`
-
-#### 3. `src/pages/Public.tsx` : timer 2 min + ecran d'attente
-
-- Quand `game?.status === 'finished'`, demarrer un timer de 2 minutes
-- Apres 2 minutes, remplacer l'ecran de resultats par un ecran d'attente :
-  - Logo en haut
-  - Icone coeur animee
-  - "Prochaine seance a [heure]" si une heure est configuree
-  - Logos partenaires en bas
-- Si aucune heure n'est configuree, afficher "A bientot pour la prochaine partie !"
-
-#### 4. `src/pages/Admin.tsx` : champ "Prochaine seance"
-
-- Ajouter dans l'onglet "Partie" (en haut, visible meme sans partie active) un champ input pour saisir l'heure de la prochaine seance
-- Bouton "Enregistrer" a cote
-- Utiliser `useSettings()` pour lire/ecrire la valeur
+Le hook `useLeaderboard` est deja importe et utilise dans `Public.tsx`. La table `settings` et le hook `useSettings` existent deja. Pas de changement backend.
 
 ### Details techniques
 
-- La table `settings` est en realtime pour que le changement d'heure sur l'admin se repercute immediatement sur l'ecran public
-- Le timer de 2 minutes est gere par un `useState` + `useEffect` dans `Public.tsx`, declenche quand le jeu passe en `finished`
-- L'ecran d'attente reste affiche jusqu'a ce qu'une nouvelle partie soit creee
-
-### Fichiers modifies
-- `src/hooks/useGame.ts` (ajout hook `useSettings`)
-- `src/pages/Public.tsx` (timer 2 min + ecran d'attente)
-- `src/pages/Admin.tsx` (champ heure prochaine seance)
-- Migration SQL (table `settings`)
+- Le layout utilise `h-screen flex flex-col` avec `justify-between` pour distribuer les 3 zones (titre, classement, logos) sur toute la hauteur sans scroll
+- Les tailles de police utilisent des classes Tailwind responsive (`text-3xl md:text-5xl lg:text-6xl`) pour s'adapter a la taille de l'ecran
+- Le `PartnerLogos` reste en position fixe en bas comme actuellement
+- Le classement est limite a `leaderboard.slice(0, 3)` pour n'afficher que le top 3
+- Si le classement est vide, on affiche un message par defaut
 
