@@ -63,40 +63,37 @@ export default function Public() {
   const [lastQuestionId, setLastQuestionId] = useState<string | null>(null);
   const [showWaitingScreen, setShowWaitingScreen] = useState(false);
   const waitingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const finishTimerScheduledRef = useRef<string | null>(null);
 
   // 2-minute timer after game finishes -> show waiting screen
   useEffect(() => {
-    if (game?.status === 'finished' && !showWaitingScreen) {
+    if (game?.status === 'finished' && finishTimerScheduledRef.current !== game.id) {
+      finishTimerScheduledRef.current = game.id;
       waitingTimerRef.current = setTimeout(() => {
         setShowWaitingScreen(true);
-      }, 2 * 60 * 1000); // 2 minutes
+        waitingTimerRef.current = null;
+      }, 2 * 60 * 1000);
     }
 
-    // Reset when a new game starts
-    if (game?.status !== 'finished') {
+    if (game?.status === 'playing' || game?.status === 'waiting') {
+      finishTimerScheduledRef.current = null;
       setShowWaitingScreen(false);
       if (waitingTimerRef.current) {
         clearTimeout(waitingTimerRef.current);
         waitingTimerRef.current = null;
       }
     }
+  }, [game?.status, game?.id]);
 
-    return () => {
-      if (waitingTimerRef.current) {
-        clearTimeout(waitingTimerRef.current);
-      }
-    };
-  }, [game?.status]);
-
-  // Also show waiting screen when no active game
+  // Also show waiting screen when no active game (but not during score display)
   useEffect(() => {
-    if (!loadingActive && !activeGame) {
+    if (!loadingActive && !activeGame && !waitingTimerRef.current && game?.status !== 'finished') {
       setShowWaitingScreen(true);
     }
-    if (activeGame) {
+    if (activeGame && activeGame.status !== 'finished') {
       setShowWaitingScreen(false);
     }
-  }, [activeGame, loadingActive]);
+  }, [activeGame, loadingActive, game?.status]);
 
   // Check if we need to show result
   useEffect(() => {
@@ -119,8 +116,49 @@ export default function Public() {
     );
   }
 
+  // Game finished - show results (for 2 minutes before waiting screen)
+  if (game?.status === 'finished' && !showWaitingScreen) {
+    return (
+      <div className="min-h-screen bg-blush p-8">
+        <HeartBackground />
+      <div className="relative z-10 max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <Logo size="lg" />
+          </div>
+
+          {(() => {
+            const { emoji, comment } = getScoreComment(game.score, game.total_questions);
+            const isPerfectScore = game.score === game.total_questions;
+            
+            return (
+              <>
+                {isPerfectScore && <ConfettiCelebration />}
+                <Card className="romantic-card animate-scale-in">
+                  <CardContent className="p-20 text-center">
+                    <div className="text-9xl mb-8">{emoji}</div>
+                    <h2 className="text-6xl font-display text-foreground mb-6">
+                      Bravo {game.player1_name} & {game.player2_name} !
+                    </h2>
+                    <p className="text-9xl font-bold text-primary mb-6">
+                      {game.score} / {game.total_questions}
+                    </p>
+                    <p className="text-4xl font-body text-muted-foreground">
+                      {comment}
+                    </p>
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
+          
+          <PartnerLogos />
+        </div>
+      </div>
+    );
+  }
+
   // Waiting screen (after 2 min or no active game)
-  if (showWaitingScreen && (!activeGame || game?.status === 'finished')) {
+  if (showWaitingScreen || !activeGame) {
     const medals = ['🥇', '🥈', '🥉'];
     const top3 = leaderboard.slice(0, 3);
 
@@ -167,61 +205,6 @@ export default function Public() {
           </div>
 
           {/* Bottom: Partner logos */}
-          <PartnerLogos />
-        </div>
-      </div>
-    );
-  }
-
-  // No active game - show waiting
-  if (!activeGame) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-blush p-8">
-        <HeartBackground />
-        <div className="relative z-10 text-center">
-          <Logo size="lg" />
-          <Heart className="w-24 h-24 text-primary mx-auto mt-12 animate-heart-beat" />
-          <PartnerLogos />
-        </div>
-      </div>
-    );
-  }
-
-  // Game finished - show results (for 2 minutes before waiting screen)
-  if (game?.status === 'finished') {
-    return (
-      <div className="min-h-screen bg-blush p-8">
-        <HeartBackground />
-      <div className="relative z-10 max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <Logo size="lg" />
-          </div>
-
-          {(() => {
-            const { emoji, comment } = getScoreComment(game.score, game.total_questions);
-            const isPerfectScore = game.score === game.total_questions;
-            
-            return (
-              <>
-                {isPerfectScore && <ConfettiCelebration />}
-                <Card className="romantic-card animate-scale-in">
-                  <CardContent className="p-20 text-center">
-                    <div className="text-9xl mb-8">{emoji}</div>
-                    <h2 className="text-6xl font-display text-foreground mb-6">
-                      Bravo {game.player1_name} & {game.player2_name} !
-                    </h2>
-                    <p className="text-9xl font-bold text-primary mb-6">
-                      {game.score} / {game.total_questions}
-                    </p>
-                    <p className="text-4xl font-body text-muted-foreground">
-                      {comment}
-                    </p>
-                  </CardContent>
-                </Card>
-              </>
-            );
-          })()}
-          
           <PartnerLogos />
         </div>
       </div>
