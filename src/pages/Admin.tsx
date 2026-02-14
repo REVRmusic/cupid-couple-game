@@ -137,6 +137,8 @@ export default function Admin() {
     }
 
     if (currentQuestion?.question_order === game?.current_question_index &&
+        currentQuestion?.player1_answer !== null &&
+        currentQuestion?.player2_answer !== null &&
         currentQuestion?.is_correct !== null && 
         currentQuestion?.is_correct !== undefined &&
         prevIsCorrectRef.current === null) {
@@ -155,10 +157,23 @@ export default function Admin() {
   const autoFinishScheduledRef = useRef(false);
 
   useEffect(() => {
+    console.log('🔍 Auto-finish check:', {
+      status: game?.status,
+      index: game?.current_question_index,
+      total: game?.total_questions,
+      questionOrder: currentQuestion?.question_order,
+      isCorrect: currentQuestion?.is_correct,
+      p1Answer: currentQuestion?.player1_answer,
+      p2Answer: currentQuestion?.player2_answer,
+      scheduled: autoFinishScheduledRef.current
+    });
+
     if (
       game?.status === 'playing' &&
       game.current_question_index + 1 >= game.total_questions &&
       currentQuestion?.question_order === game.current_question_index &&
+      currentQuestion?.player1_answer !== null &&
+      currentQuestion?.player2_answer !== null &&
       currentQuestion?.is_correct !== null &&
       currentQuestion?.is_correct !== undefined &&
       !autoFinishScheduledRef.current
@@ -168,21 +183,35 @@ export default function Admin() {
       const gameId = game.id;
       const questionIndex = game.current_question_index;
       const totalQ = game.total_questions;
+      const questionId = currentQuestion.id;
 
       console.log('🎭 Last question answered - scheduling FINISH in 2.5s');
 
       autoFinishTimerRef.current = setTimeout(async () => {
+        // Couche 2 : vérification directe en base avant de finir
+        const { data: verifyQ } = await supabase
+          .from('game_questions')
+          .select('player1_answer, player2_answer')
+          .eq('id', questionId)
+          .single();
+
+        if (!verifyQ?.player1_answer || !verifyQ?.player2_answer) {
+          console.log('❌ DB verification failed - answers missing, aborting finish');
+          autoFinishScheduledRef.current = false;
+          return;
+        }
+
+        console.log('✅ DB verification passed - finishing game');
         sendSignal('FINISH', { score: finalScore, total: totalQ });
         await nextQuestion(gameId, questionIndex, totalQ);
       }, 2500);
-      // PAS de cleanup ici - le timer doit survivre aux re-renders
     }
 
     // Reset le flag quand on revient en attente d'une nouvelle partie
     if (game?.status !== 'playing') {
       autoFinishScheduledRef.current = false;
     }
-  }, [game?.status, game?.current_question_index, game?.total_questions, currentQuestion?.is_correct, sendSignal]);
+  }, [game?.status, game?.current_question_index, game?.total_questions, currentQuestion?.is_correct, currentQuestion?.player1_answer, currentQuestion?.player2_answer, sendSignal]);
 
   // Cleanup uniquement au démontage du composant
   useEffect(() => {
