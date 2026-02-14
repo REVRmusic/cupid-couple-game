@@ -139,28 +139,45 @@ export default function Admin() {
 
   // Auto-finish game 5 seconds after last question result is revealed
   const autoFinishTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoFinishScheduledRef = useRef(false);
+
   useEffect(() => {
     if (
       game?.status === 'playing' &&
       game.current_question_index + 1 >= game.total_questions &&
       currentQuestion?.is_correct !== null &&
-      currentQuestion?.is_correct !== undefined
+      currentQuestion?.is_correct !== undefined &&
+      !autoFinishScheduledRef.current
     ) {
-      console.log('🎭 Last question answered - auto-finishing in 2.5 seconds');
-      autoFinishTimerRef.current = setTimeout(() => {
-        // Send FINISH signal with score before transitioning
-        const finalScore = game.score + (currentQuestion.is_correct ? 1 : 0);
-        sendSignal('FINISH', { score: finalScore, total: game.total_questions });
-        handleNextQuestion();
+      autoFinishScheduledRef.current = true;
+      const finalScore = game.score + (currentQuestion.is_correct ? 1 : 0);
+      const gameId = game.id;
+      const questionIndex = game.current_question_index;
+      const totalQ = game.total_questions;
+
+      console.log('🎭 Last question answered - scheduling FINISH in 2.5s');
+
+      autoFinishTimerRef.current = setTimeout(async () => {
+        sendSignal('FINISH', { score: finalScore, total: totalQ });
+        await nextQuestion(gameId, questionIndex, totalQ);
       }, 2500);
-      return () => {
-        if (autoFinishTimerRef.current) {
-          clearTimeout(autoFinishTimerRef.current);
-          autoFinishTimerRef.current = null;
-        }
-      };
+      // PAS de cleanup ici - le timer doit survivre aux re-renders
     }
-  }, [game?.status, game?.current_question_index, game?.total_questions, currentQuestion?.is_correct]);
+
+    // Reset le flag quand on revient en attente d'une nouvelle partie
+    if (game?.status !== 'playing') {
+      autoFinishScheduledRef.current = false;
+    }
+  }, [game?.status, game?.current_question_index, game?.total_questions, currentQuestion?.is_correct, sendSignal]);
+
+  // Cleanup uniquement au démontage du composant
+  useEffect(() => {
+    return () => {
+      if (autoFinishTimerRef.current) {
+        clearTimeout(autoFinishTimerRef.current);
+      }
+    };
+  }, []);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
