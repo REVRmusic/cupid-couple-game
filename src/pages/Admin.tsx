@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGame, useActiveGame, useQuestions, useLeaderboard } from "@/hooks/useGame";
+import { useSettings } from "@/hooks/useSettings";
 import { createGame, startGame, nextQuestion, resetGame, deleteGame, resetLeaderboard } from "@/lib/gameActions";
 import {
   Play,
@@ -107,6 +108,13 @@ export default function Admin() {
   const { leaderboard } = useLeaderboard();
   const { logos: partnerLogos, addLogo, deleteLogo, toggleActive, reorderLogos } = usePartnerLogosAdmin();
   const { sendSignal, isConnected: isLightingConnected } = useLightingControl();
+  const { nextSessionTime, updateNextSessionTime } = useSettings();
+  const [sessionTimeInput, setSessionTimeInput] = useState('');
+
+  // Sync input with loaded value
+  useEffect(() => {
+    setSessionTimeInput(nextSessionTime);
+  }, [nextSessionTime]);
   
   // Track previous is_correct value and question index to detect changes
   const prevIsCorrectRef = useRef<boolean | null | undefined>(undefined);
@@ -358,6 +366,35 @@ export default function Admin() {
 
           {/* Game Tab */}
           <TabsContent value="game" className="space-y-6">
+            {/* Next Session Time */}
+            <Card className="romantic-card">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <label className="text-sm font-body text-muted-foreground whitespace-nowrap">Prochaine séance</label>
+                  <Input
+                    value={sessionTimeInput}
+                    onChange={(e) => setSessionTimeInput(e.target.value)}
+                    placeholder="Ex: 15h30"
+                    className="w-40"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      const { error } = await updateNextSessionTime(sessionTimeInput);
+                      if (error) {
+                        toast({ title: "Erreur", description: "Impossible d'enregistrer", variant: "destructive" });
+                      } else {
+                        toast({ title: "Enregistré", description: `Prochaine séance : ${sessionTimeInput || '(vide)'}` });
+                      }
+                    }}
+                  >
+                    <Check className="w-4 h-4 mr-1" /> Enregistrer
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
             {!activeGame ? (
               <Card className="romantic-card">
                 <CardHeader>

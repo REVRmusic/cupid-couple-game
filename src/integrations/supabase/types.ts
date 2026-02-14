@@ -155,6 +155,24 @@ export type Database = {
         }
         Relationships: []
       }
+      settings: {
+        Row: {
+          id: string
+          next_session_time: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          next_session_time?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          next_session_time?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

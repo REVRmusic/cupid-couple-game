@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { HeartBackground } from '@/components/HeartBackground';
 import { Logo } from '@/components/Logo';
 import { Card, CardContent } from '@/components/ui/card';
 import { useGame, useActiveGame, useLeaderboard } from '@/hooks/useGame';
-import { Heart } from 'lucide-react';
+import { useSettings } from '@/hooks/useSettings';
+import { Heart, Clock } from 'lucide-react';
 import { PartnerLogos } from '@/components/PartnerLogos';
 import { ConfettiCelebration } from '@/components/ConfettiCelebration';
 
@@ -57,8 +58,45 @@ export default function Public() {
   const { activeGame, loading: loadingActive } = useActiveGame();
   const { game, currentQuestion, gameQuestions, loading } = useGame(activeGame?.id);
   const { leaderboard } = useLeaderboard();
+  const { nextSessionTime } = useSettings();
   const [showResult, setShowResult] = useState(false);
   const [lastQuestionId, setLastQuestionId] = useState<string | null>(null);
+  const [showWaitingScreen, setShowWaitingScreen] = useState(false);
+  const waitingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 2-minute timer after game finishes -> show waiting screen
+  useEffect(() => {
+    if (game?.status === 'finished' && !showWaitingScreen) {
+      waitingTimerRef.current = setTimeout(() => {
+        setShowWaitingScreen(true);
+      }, 2 * 60 * 1000); // 2 minutes
+    }
+
+    // Reset when a new game starts
+    if (game?.status !== 'finished') {
+      setShowWaitingScreen(false);
+      if (waitingTimerRef.current) {
+        clearTimeout(waitingTimerRef.current);
+        waitingTimerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (waitingTimerRef.current) {
+        clearTimeout(waitingTimerRef.current);
+      }
+    };
+  }, [game?.status]);
+
+  // Also show waiting screen when no active game
+  useEffect(() => {
+    if (!loadingActive && !activeGame) {
+      setShowWaitingScreen(true);
+    }
+    if (activeGame) {
+      setShowWaitingScreen(false);
+    }
+  }, [activeGame, loadingActive]);
 
   // Check if we need to show result
   useEffect(() => {
@@ -81,8 +119,50 @@ export default function Public() {
     );
   }
 
-  // No active game - show leaderboard
-  if (!activeGame || game?.status === 'finished') {
+  // Waiting screen (after 2 min or no active game)
+  if (showWaitingScreen && (!activeGame || game?.status === 'finished')) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-blush p-8">
+        <HeartBackground />
+        <div className="relative z-10 text-center">
+          <Logo size="lg" />
+          <div className="mt-12">
+            <Heart className="w-24 h-24 text-primary mx-auto animate-heart-beat mb-8" />
+            {nextSessionTime ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex items-center gap-3 text-4xl font-display text-foreground">
+                  <Clock className="w-10 h-10 text-primary" />
+                  <span>Prochaine séance à {nextSessionTime}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-3xl font-display text-foreground">
+                À bientôt pour la prochaine partie !
+              </p>
+            )}
+          </div>
+          <PartnerLogos />
+        </div>
+      </div>
+    );
+  }
+
+  // No active game - show waiting
+  if (!activeGame) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-blush p-8">
+        <HeartBackground />
+        <div className="relative z-10 text-center">
+          <Logo size="lg" />
+          <Heart className="w-24 h-24 text-primary mx-auto mt-12 animate-heart-beat" />
+          <PartnerLogos />
+        </div>
+      </div>
+    );
+  }
+
+  // Game finished - show results (for 2 minutes before waiting screen)
+  if (game?.status === 'finished') {
     return (
       <div className="min-h-screen bg-blush p-8">
         <HeartBackground />
@@ -91,7 +171,7 @@ export default function Public() {
             <Logo size="lg" />
           </div>
 
-          {game?.status === 'finished' && (() => {
+          {(() => {
             const { emoji, comment } = getScoreComment(game.score, game.total_questions);
             const isPerfectScore = game.score === game.total_questions;
             
